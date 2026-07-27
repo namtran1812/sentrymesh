@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/namtran1812/sentrymesh/gateway/internal/approval"
 	"github.com/namtran1812/sentrymesh/gateway/internal/executor"
@@ -16,9 +15,7 @@ func ExecuteApprovalHandler(
 ) {
 	w.Header().Set("Content-Type", "application/json")
 
-	rawID := r.PathValue("id")
-
-	id, err := strconv.ParseInt(rawID, 10, 64)
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		http.Error(
 			w,
@@ -38,10 +35,19 @@ func ExecuteApprovalHandler(
 		return
 	}
 
-	if item.ExecutedAt != nil {
+	if item.ExecutedAt != nil || item.Status == "EXECUTED" {
 		http.Error(
 			w,
 			`{"error":"approval already executed"}`,
+			http.StatusConflict,
+		)
+		return
+	}
+
+	if item.Status == "EXECUTING" {
+		http.Error(
+			w,
+			`{"error":"approval execution already in progress"}`,
 			http.StatusConflict,
 		)
 		return
@@ -56,9 +62,30 @@ func ExecuteApprovalHandler(
 		return
 	}
 
+	claimed, err := approvalStore.ClaimExecution(r.Context(), id)
+	if err != nil {
+		http.Error(
+			w,
+			`{"error":"failed to claim execution"}`,
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	if !claimed {
+		http.Error(
+			w,
+			`{"error":"approval already claimed or executed"}`,
+			http.StatusConflict,
+		)
+		return
+	}
+
 	var arguments map[string]any
 
 	if err := json.Unmarshal(item.Arguments, &arguments); err != nil {
+		_ = approvalStore.FailExecution(r.Context(), id)
+
 		http.Error(
 			w,
 			`{"error":"invalid stored arguments"}`,
@@ -73,6 +100,8 @@ func ExecuteApprovalHandler(
 		arguments,
 	)
 	if err != nil {
+		_ = approvalStore.FailExecution(r.Context(), id)
+
 		http.Error(
 			w,
 			`{"error":"tool execution failed"}`,
@@ -81,21 +110,10 @@ func ExecuteApprovalHandler(
 		return
 	}
 
-	_, err = approvalStore.DB().ExecContext(
-		r.Context(),
-		`
-		UPDATE approvals
-		SET executed_at = ?
-		WHERE id = ?
-		  AND executed_at IS NULL
-		`,
-		time.Now().UTC().Format(time.RFC3339Nano),
-		id,
-	)
-	if err != nil {
+	if err := approvalStore.FinishExecution(r.Context(), id); err != nil {
 		http.Error(
 			w,
-			`{"error":"failed to record execution"}`,
+			`{"error":"failed to finalize execution"}`,
 			http.StatusInternalServerError,
 		)
 		return
