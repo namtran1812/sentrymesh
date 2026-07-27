@@ -3,6 +3,8 @@ package tools
 import (
 	"fmt"
 	"strings"
+
+	"github.com/namtran1812/sentrymesh/gateway/internal/identity"
 )
 
 type Decision string
@@ -14,8 +16,9 @@ const (
 )
 
 type ToolCall struct {
-	Name      string         `json:"name"`
-	Arguments map[string]any `json:"arguments"`
+	Name      string            `json:"name"`
+	Arguments map[string]any    `json:"arguments"`
+	Identity  identity.Identity `json:"identity"`
 }
 
 type Evaluation struct {
@@ -45,27 +48,20 @@ func Evaluate(call ToolCall) Evaluation {
 		return evaluateUpdateCustomer(call)
 
 	case "delete_customer":
+		if call.Identity.Role != identity.Admin {
+			return Evaluation{
+				Tool:     call.Name,
+				Decision: Deny,
+				Reason:   "only admins may request customer deletion",
+				Risk:     95,
+			}
+		}
+
 		return Evaluation{
 			Tool:     call.Name,
-			Decision: Deny,
-			Reason:   "destructive customer operation is prohibited",
+			Decision: RequireApproval,
+			Reason:   "admin destructive action requires approval",
 			Risk:     95,
-		}
-
-	case "export_database":
-		return Evaluation{
-			Tool:     call.Name,
-			Decision: Deny,
-			Reason:   "bulk data export is prohibited",
-			Risk:     100,
-		}
-
-	case "execute_shell":
-		return Evaluation{
-			Tool:     call.Name,
-			Decision: Deny,
-			Reason:   "arbitrary shell execution is prohibited",
-			Risk:     100,
 		}
 
 	default:
@@ -80,6 +76,20 @@ func Evaluate(call ToolCall) Evaluation {
 
 func evaluateReadCustomer(call ToolCall) Evaluation {
 	fields := stringSlice(call.Arguments["fields"])
+
+	if call.Identity.Role == identity.Analyst {
+		for _, field := range fields {
+			if strings.EqualFold(field, "email") ||
+				strings.EqualFold(field, "phone") {
+				return Evaluation{
+					Tool:     call.Name,
+					Decision: Deny,
+					Reason:   "analysts cannot access customer contact fields",
+					Risk:     80,
+				}
+			}
+		}
+	}
 
 	sensitive := map[string]bool{
 		"ssn":          true,
@@ -110,6 +120,15 @@ func evaluateReadCustomer(call ToolCall) Evaluation {
 }
 
 func evaluateSendEmail(call ToolCall) Evaluation {
+	if call.Identity.Role == identity.Analyst {
+		return Evaluation{
+			Tool:     call.Name,
+			Decision: Deny,
+			Reason:   "analysts cannot send external email",
+			Risk:     80,
+		}
+	}
+
 	to, _ := call.Arguments["to"].(string)
 
 	if to == "" {
@@ -121,10 +140,7 @@ func evaluateSendEmail(call ToolCall) Evaluation {
 		}
 	}
 
-	if strings.HasSuffix(
-		strings.ToLower(to),
-		"@sentrymesh.local",
-	) {
+	if strings.HasSuffix(strings.ToLower(to), "@sentrymesh.local") {
 		return Evaluation{
 			Tool:     call.Name,
 			Decision: Allow,
@@ -142,31 +158,29 @@ func evaluateSendEmail(call ToolCall) Evaluation {
 }
 
 func evaluateUpdateCustomer(call ToolCall) Evaluation {
-	fields := stringSlice(call.Arguments["fields"])
-
-	protected := map[string]bool{
-		"role":          true,
-		"permissions":   true,
-		"account_owner": true,
-		"billing_plan":  true,
+	if call.Identity.Role == identity.Analyst {
+		return Evaluation{
+			Tool:     call.Name,
+			Decision: Deny,
+			Reason:   "analysts cannot modify customer records",
+			Risk:     85,
+		}
 	}
 
-	for _, field := range fields {
-		if protected[strings.ToLower(field)] {
-			return Evaluation{
-				Tool:     call.Name,
-				Decision: Deny,
-				Reason:   fmt.Sprintf("protected field %q cannot be modified", field),
-				Risk:     90,
-			}
+	if call.Identity.Role == identity.Sales {
+		return Evaluation{
+			Tool:     call.Name,
+			Decision: RequireApproval,
+			Reason:   "sales customer mutation requires approval",
+			Risk:     70,
 		}
 	}
 
 	return Evaluation{
 		Tool:     call.Name,
-		Decision: RequireApproval,
-		Reason:   "customer mutation requires human approval",
-		Risk:     70,
+		Decision: Allow,
+		Reason:   "admin customer mutation permitted",
+		Risk:     30,
 	}
 }
 

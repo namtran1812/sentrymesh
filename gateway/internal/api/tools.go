@@ -7,12 +7,14 @@ import (
 	"time"
 
 	"github.com/namtran1812/sentrymesh/gateway/internal/audit"
+	"github.com/namtran1812/sentrymesh/gateway/internal/identity"
 	"github.com/namtran1812/sentrymesh/gateway/internal/tools"
 )
 
 type ToolEvaluationRequest struct {
-	Name      string         `json:"name"`
-	Arguments map[string]any `json:"arguments"`
+	Name      string            `json:"name"`
+	Arguments map[string]any    `json:"arguments"`
+	Identity  identity.Identity `json:"identity"`
 }
 
 type ToolEvaluationResponse struct {
@@ -50,6 +52,7 @@ func ToolEvaluationHandler(
 		tools.ToolCall{
 			Name:      req.Name,
 			Arguments: req.Arguments,
+			Identity:  req.Identity,
 		},
 	)
 
