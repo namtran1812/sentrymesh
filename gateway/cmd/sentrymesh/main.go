@@ -26,6 +26,8 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	seedDevelopmentKeys()
+
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /health", healthHandler)

@@ -30,7 +30,7 @@ func Auth(next http.Handler) http.Handler {
 
 		apiKey := strings.TrimSpace(strings.TrimPrefix(header, prefix))
 
-		principal, err := auth.Resolve(apiKey)
+		principal, err := auth.Resolve(r.Context(), apiKey)
 		if err != nil {
 			writeAuthError(w, "invalid API key")
 			return
