@@ -158,6 +158,26 @@ func evaluateSendEmail(call ToolCall) Evaluation {
 }
 
 func evaluateUpdateCustomer(call ToolCall) Evaluation {
+	fields := stringSlice(call.Arguments["fields"])
+
+	protected := map[string]bool{
+		"role":          true,
+		"permissions":   true,
+		"account_owner": true,
+		"billing_plan":  true,
+	}
+
+	for _, field := range fields {
+		if protected[strings.ToLower(field)] {
+			return Evaluation{
+				Tool:     call.Name,
+				Decision: Deny,
+				Reason:   fmt.Sprintf("protected field %q cannot be modified", field),
+				Risk:     90,
+			}
+		}
+	}
+
 	if call.Identity.Role == identity.Analyst {
 		return Evaluation{
 			Tool:     call.Name,

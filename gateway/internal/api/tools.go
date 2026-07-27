@@ -7,14 +7,13 @@ import (
 	"time"
 
 	"github.com/namtran1812/sentrymesh/gateway/internal/audit"
-	"github.com/namtran1812/sentrymesh/gateway/internal/identity"
+	"github.com/namtran1812/sentrymesh/gateway/internal/middleware"
 	"github.com/namtran1812/sentrymesh/gateway/internal/tools"
 )
 
 type ToolEvaluationRequest struct {
-	Name      string            `json:"name"`
-	Arguments map[string]any    `json:"arguments"`
-	Identity  identity.Identity `json:"identity"`
+	Name      string         `json:"name"`
+	Arguments map[string]any `json:"arguments"`
 }
 
 type ToolEvaluationResponse struct {
@@ -48,11 +47,21 @@ func ToolEvaluationHandler(
 		return
 	}
 
+	principal, ok := middleware.IdentityFromContext(r.Context())
+	if !ok {
+		http.Error(
+			w,
+			`{"error":"authenticated identity unavailable"}`,
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
 	result := tools.Evaluate(
 		tools.ToolCall{
 			Name:      req.Name,
 			Arguments: req.Arguments,
-			Identity:  req.Identity,
+			Identity:  principal,
 		},
 	)
 

@@ -32,11 +32,11 @@ func main() {
 	mux.HandleFunc("POST /v1/chat/completions", api.ChatHandler)
 	mux.HandleFunc("GET /v1/audit/events", api.AuditEventsHandler)
 	mux.HandleFunc("GET /v1/audit/stats", api.AuditStatsHandler)
-	mux.HandleFunc("POST /v1/tools/evaluate", api.ToolEvaluationHandler)
+	mux.Handle("POST /v1/tools/evaluate", middleware.Auth(http.HandlerFunc(api.ToolEvaluationHandler)))
 	mux.HandleFunc("GET /v1/approvals", api.ListApprovalsHandler)
-	mux.HandleFunc("POST /v1/approvals/{id}/approve", api.ApproveHandler)
-	mux.HandleFunc("POST /v1/approvals/{id}/reject", api.RejectHandler)
-	mux.HandleFunc("POST /v1/approvals/{id}/execute", api.ExecuteApprovalHandler)
+	mux.Handle("POST /v1/approvals/{id}/approve", middleware.Auth(http.HandlerFunc(api.ApproveHandler)))
+	mux.Handle("POST /v1/approvals/{id}/reject", middleware.Auth(http.HandlerFunc(api.RejectHandler)))
+	mux.Handle("POST /v1/approvals/{id}/execute", middleware.Auth(http.HandlerFunc(api.ExecuteApprovalHandler)))
 	mux.HandleFunc("GET /v1/approvals/{id}/events", api.ToolEventsHandler)
 
 	server := &http.Server{
