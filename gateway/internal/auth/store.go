@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/namtran1812/sentrymesh/gateway/internal/identity"
@@ -14,6 +15,7 @@ import (
 )
 
 type Key struct {
+	Scopes    string
 	ID        int64
 	Name      string
 	KeyHash   string
@@ -56,6 +58,7 @@ func (s *Store) migrate() error {
 			user_id TEXT NOT NULL,
 			role TEXT NOT NULL,
 			team TEXT NOT NULL,
+			scopes TEXT NOT NULL DEFAULT '',
 			expires_at TEXT,
 			revoked_at TEXT,
 			created_at TEXT NOT NULL
@@ -72,7 +75,6 @@ func Hash(raw string) string {
 	sum := sha256.Sum256([]byte(raw))
 	return hex.EncodeToString(sum[:])
 }
-
 func (s *Store) Create(
 	ctx context.Context,
 	name string,
@@ -87,6 +89,8 @@ func (s *Store) Create(
 		expires = &value
 	}
 
+	scopes := strings.Join(principal.Scopes, ",")
+
 	_, err := s.db.ExecContext(
 		ctx,
 		`
@@ -96,16 +100,18 @@ func (s *Store) Create(
 			user_id,
 			role,
 			team,
+			scopes,
 			expires_at,
 			created_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		`,
 		name,
 		Hash(rawKey),
 		principal.UserID,
 		principal.Role,
 		principal.Team,
+		scopes,
 		expires,
 		time.Now().UTC().Format(time.RFC3339Nano),
 	)
@@ -129,6 +135,7 @@ func (s *Store) Resolve(
 			user_id,
 			role,
 			team,
+			scopes,
 			expires_at,
 			revoked_at
 		FROM api_keys
@@ -142,6 +149,7 @@ func (s *Store) Resolve(
 		&key.UserID,
 		&key.Role,
 		&key.Team,
+		&key.Scopes,
 		&key.ExpiresAt,
 		&key.RevokedAt,
 	)
@@ -168,6 +176,7 @@ func (s *Store) Resolve(
 		UserID: key.UserID,
 		Role:   key.Role,
 		Team:   key.Team,
+		Scopes: splitScopes(key.Scopes),
 	}, nil
 }
 
@@ -204,4 +213,23 @@ func (s *Store) Revoke(
 
 func (s *Store) Close() error {
 	return s.db.Close()
+}
+
+func splitScopes(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+
+	parts := strings.Split(raw, ",")
+
+	result := make([]string, 0, len(parts))
+
+	for _, part := range parts {
+		scope := strings.TrimSpace(part)
+		if scope != "" {
+			result = append(result, scope)
+		}
+	}
+
+	return result
 }
