@@ -32,6 +32,7 @@ func main() {
 	mux.HandleFunc("POST /v1/chat/completions", api.ChatHandler)
 	mux.HandleFunc("GET /v1/audit/events", api.AuditEventsHandler)
 	mux.HandleFunc("GET /v1/audit/stats", api.AuditStatsHandler)
+	mux.HandleFunc("POST /v1/tools/evaluate", api.ToolEvaluationHandler)
 
 	server := &http.Server{
 		Addr:    ":8080",
