@@ -9,6 +9,8 @@ import (
 	"github.com/namtran1812/sentrymesh/gateway/internal/approval"
 	"github.com/namtran1812/sentrymesh/gateway/internal/audit"
 	"github.com/namtran1812/sentrymesh/gateway/internal/executor"
+	"github.com/namtran1812/sentrymesh/gateway/internal/identity"
+	"github.com/namtran1812/sentrymesh/gateway/internal/middleware"
 )
 
 func ExecuteApprovalHandler(
@@ -17,7 +19,30 @@ func ExecuteApprovalHandler(
 ) {
 	w.Header().Set("Content-Type", "application/json")
 
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	principal, ok := middleware.IdentityFromContext(r.Context())
+	if !ok {
+		http.Error(
+			w,
+			`{"error":"authenticated identity unavailable"}`,
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
+	if principal.Role != identity.Admin {
+		http.Error(
+			w,
+			`{"error":"admin role required"}`,
+			http.StatusForbidden,
+		)
+		return
+	}
+
+	id, err := strconv.ParseInt(
+		r.PathValue("id"),
+		10,
+		64,
+	)
 	if err != nil {
 		http.Error(
 			w,
@@ -64,11 +89,23 @@ func ExecuteApprovalHandler(
 		return
 	}
 
-	claimed, err := approvalStore.ClaimExecution(r.Context(), id)
+	claimed, err := approvalStore.ClaimExecution(
+		r.Context(),
+		id,
+	)
 	if err != nil {
 		http.Error(
 			w,
 			`{"error":"execution claim conflict"}`,
+			http.StatusConflict,
+		)
+		return
+	}
+
+	if !claimed {
+		http.Error(
+			w,
+			`{"error":"approval already claimed or executed"}`,
 			http.StatusConflict,
 		)
 		return
@@ -83,18 +120,15 @@ func ExecuteApprovalHandler(
 			Tool:       item.Tool,
 			Risk:       item.Risk,
 			Status:     "EXECUTING",
-			Details:    item.Arguments,
+			Details: map[string]any{
+				"actor": map[string]any{
+					"user_id": principal.UserID,
+					"role":    principal.Role,
+					"team":    principal.Team,
+				},
+			},
 		},
 	)
-
-	if !claimed {
-		http.Error(
-			w,
-			`{"error":"approval already claimed or executed"}`,
-			http.StatusConflict,
-		)
-		return
-	}
 
 	var arguments map[string]any
 
@@ -125,7 +159,10 @@ func ExecuteApprovalHandler(
 		return
 	}
 
-	if err := approvalStore.FinishExecution(r.Context(), id); err != nil {
+	if err := approvalStore.FinishExecution(
+		r.Context(),
+		id,
+	); err != nil {
 		http.Error(
 			w,
 			`{"error":"failed to finalize execution"}`,
@@ -143,7 +180,14 @@ func ExecuteApprovalHandler(
 			Tool:       item.Tool,
 			Risk:       item.Risk,
 			Status:     "EXECUTED",
-			Details:    result,
+			Details: map[string]any{
+				"result": result,
+				"actor": map[string]any{
+					"user_id": principal.UserID,
+					"role":    principal.Role,
+					"team":    principal.Team,
+				},
+			},
 		},
 	)
 

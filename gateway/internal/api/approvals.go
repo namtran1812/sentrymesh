@@ -8,6 +8,8 @@ import (
 
 	"github.com/namtran1812/sentrymesh/gateway/internal/approval"
 	"github.com/namtran1812/sentrymesh/gateway/internal/audit"
+	"github.com/namtran1812/sentrymesh/gateway/internal/identity"
+	"github.com/namtran1812/sentrymesh/gateway/internal/middleware"
 )
 
 func ListApprovalsHandler(
@@ -50,9 +52,30 @@ func resolveApproval(
 ) {
 	w.Header().Set("Content-Type", "application/json")
 
-	rawID := r.PathValue("id")
+	principal, ok := middleware.IdentityFromContext(r.Context())
+	if !ok {
+		http.Error(
+			w,
+			`{"error":"authenticated identity unavailable"}`,
+			http.StatusUnauthorized,
+		)
+		return
+	}
 
-	id, err := strconv.ParseInt(rawID, 10, 64)
+	if principal.Role != identity.Admin {
+		http.Error(
+			w,
+			`{"error":"admin role required"}`,
+			http.StatusForbidden,
+		)
+		return
+	}
+
+	id, err := strconv.ParseInt(
+		r.PathValue("id"),
+		10,
+		64,
+	)
 	if err != nil {
 		http.Error(
 			w,
@@ -92,7 +115,14 @@ func resolveApproval(
 			Tool:       item.Tool,
 			Risk:       item.Risk,
 			Status:     string(status),
-			Details:    item.Arguments,
+			Details: map[string]any{
+				"arguments": item.Arguments,
+				"actor": map[string]any{
+					"user_id": principal.UserID,
+					"role":    principal.Role,
+					"team":    principal.Team,
+				},
+			},
 		},
 	)
 
