@@ -14,7 +14,7 @@ func ListApprovalsHandler(
 ) {
 	w.Header().Set("Content-Type", "application/json")
 
-	items, err := approvalStore.ListPending(r.Context())
+	items, err := approvalStore.ListActive(r.Context())
 	if err != nil {
 		http.Error(
 			w,

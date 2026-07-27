@@ -326,3 +326,60 @@ func (s *Store) DB() *sql.DB {
 func (s *Store) Close() error {
 	return s.db.Close()
 }
+
+func (s *Store) ListActive(ctx context.Context) ([]Request, error) {
+	rows, err := s.db.QueryContext(
+		ctx,
+		`
+		SELECT
+			id,
+			created_at,
+			tool,
+			arguments,
+			risk,
+			reason,
+			status,
+			executed_at
+		FROM approvals
+		WHERE status IN (?, ?, ?)
+		  AND executed_at IS NULL
+		ORDER BY id DESC
+		`,
+		Pending,
+		Approved,
+		"EXECUTING",
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	results := make([]Request, 0)
+
+	for rows.Next() {
+		var item Request
+		var arguments string
+
+		if err := rows.Scan(
+			&item.ID,
+			&item.CreatedAt,
+			&item.Tool,
+			&arguments,
+			&item.Risk,
+			&item.Reason,
+			&item.Status,
+			&item.ExecutedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		item.Arguments = json.RawMessage(arguments)
+		results = append(results, item)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return results, nil
+}
