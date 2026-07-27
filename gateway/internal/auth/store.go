@@ -233,3 +233,96 @@ func splitScopes(raw string) []string {
 
 	return result
 }
+
+type KeyRecord struct {
+	ID        int64   `json:"id"`
+	Name      string  `json:"name"`
+	UserID    string  `json:"user_id"`
+	Role      string  `json:"role"`
+	Team      string  `json:"team"`
+	Scopes    string  `json:"scopes"`
+	ExpiresAt *string `json:"expires_at,omitempty"`
+	RevokedAt *string `json:"revoked_at,omitempty"`
+	CreatedAt string  `json:"created_at"`
+}
+
+func (s *Store) List(
+	ctx context.Context,
+) ([]KeyRecord, error) {
+	rows, err := s.db.QueryContext(
+		ctx,
+		`
+		SELECT
+			id,
+			name,
+			user_id,
+			role,
+			team,
+			scopes,
+			expires_at,
+			revoked_at,
+			created_at
+		FROM api_keys
+		ORDER BY id DESC
+		`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	results := make([]KeyRecord, 0)
+
+	for rows.Next() {
+		var item KeyRecord
+
+		if err := rows.Scan(
+			&item.ID,
+			&item.Name,
+			&item.UserID,
+			&item.Role,
+			&item.Team,
+			&item.Scopes,
+			&item.ExpiresAt,
+			&item.RevokedAt,
+			&item.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		results = append(results, item)
+	}
+
+	return results, rows.Err()
+}
+
+func (s *Store) RevokeByID(
+	ctx context.Context,
+	id int64,
+) error {
+	result, err := s.db.ExecContext(
+		ctx,
+		`
+		UPDATE api_keys
+		SET revoked_at = ?
+		WHERE id = ?
+		  AND revoked_at IS NULL
+		`,
+		time.Now().UTC().Format(time.RFC3339Nano),
+		id,
+	)
+	if err != nil {
+		return err
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if affected == 0 {
+		return fmt.Errorf("API key not found or already revoked")
+	}
+
+	return nil
+}
