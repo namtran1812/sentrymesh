@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/namtran1812/sentrymesh/gateway/internal/api"
+	"github.com/namtran1812/sentrymesh/gateway/internal/middleware"
 )
 
 type HealthResponse struct {
@@ -34,7 +35,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:    ":8080",
-		Handler: mux,
+		Handler: middleware.CORS(mux),
 	}
 
 	log.Println("SentryMesh Gateway listening on http://localhost:8080")
