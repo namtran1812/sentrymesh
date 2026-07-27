@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/namtran1812/sentrymesh/gateway/internal/approval"
+	"github.com/namtran1812/sentrymesh/gateway/internal/audit"
 )
 
 func ListApprovalsHandler(
@@ -72,6 +74,27 @@ func resolveApproval(
 		)
 		return
 	}
+
+	item, _ := approvalStore.Get(r.Context(), id)
+
+	eventType := "TOOL_APPROVED"
+
+	if status == approval.Rejected {
+		eventType = "TOOL_REJECTED"
+	}
+
+	_ = auditStore.WriteToolEvent(
+		r.Context(),
+		audit.ToolEvent{
+			Timestamp:  time.Now(),
+			ApprovalID: id,
+			EventType:  eventType,
+			Tool:       item.Tool,
+			Risk:       item.Risk,
+			Status:     string(status),
+			Details:    item.Arguments,
+		},
+	)
 
 	_ = json.NewEncoder(w).Encode(
 		map[string]any{

@@ -302,3 +302,65 @@ pre {
   color: #71717a;
   text-align: center;
 }
+
+.timeline {
+  padding: 20px;
+}
+
+.timeline-item {
+  position: relative;
+  display: flex;
+  gap: 16px;
+  padding-bottom: 24px;
+}
+
+.timeline-item:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 14px;
+  bottom: -4px;
+  width: 1px;
+  background: #3f3f46;
+}
+
+.timeline-marker {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #22c55e;
+  flex-shrink: 0;
+  margin-top: 4px;
+  z-index: 1;
+}
+
+.timeline-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.timeline-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.timeline-top strong {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+}
+
+.timeline-top span {
+  color: #71717a;
+  font-size: 11px;
+}
+
+.timeline-meta {
+  color: #a1a1aa;
+  font-size: 12px;
+  margin: 6px 0 10px;
+}
+
+.approval-card {
+  cursor: pointer;
+}

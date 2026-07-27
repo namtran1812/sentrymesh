@@ -66,3 +66,19 @@ export async function executeRequest(id: number): Promise<void> {
     throw new Error(`execute failed: ${response.status}`)
   }
 }
+
+export async function fetchToolEvents(
+  approvalId: number,
+): Promise<import('./types').ToolEvent[]> {
+  const response = await fetch(
+    `${API_BASE}/v1/approvals/${approvalId}/events`,
+  )
+
+  if (!response.ok) {
+    throw new Error(
+      `tool events request failed: ${response.status}`,
+    )
+  }
+
+  return response.json()
+}

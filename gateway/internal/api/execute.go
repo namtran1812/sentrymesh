@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/namtran1812/sentrymesh/gateway/internal/approval"
+	"github.com/namtran1812/sentrymesh/gateway/internal/audit"
 	"github.com/namtran1812/sentrymesh/gateway/internal/executor"
 )
 
@@ -72,6 +74,19 @@ func ExecuteApprovalHandler(
 		return
 	}
 
+	_ = auditStore.WriteToolEvent(
+		r.Context(),
+		audit.ToolEvent{
+			Timestamp:  time.Now(),
+			ApprovalID: id,
+			EventType:  "TOOL_EXECUTION_STARTED",
+			Tool:       item.Tool,
+			Risk:       item.Risk,
+			Status:     "EXECUTING",
+			Details:    item.Arguments,
+		},
+	)
+
 	if !claimed {
 		http.Error(
 			w,
@@ -118,6 +133,19 @@ func ExecuteApprovalHandler(
 		)
 		return
 	}
+
+	_ = auditStore.WriteToolEvent(
+		r.Context(),
+		audit.ToolEvent{
+			Timestamp:  time.Now(),
+			ApprovalID: id,
+			EventType:  "TOOL_EXECUTION_SUCCEEDED",
+			Tool:       item.Tool,
+			Risk:       item.Risk,
+			Status:     "EXECUTED",
+			Details:    result,
+		},
+	)
 
 	_ = json.NewEncoder(w).Encode(result)
 }

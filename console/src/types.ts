@@ -52,3 +52,14 @@ export interface Approval {
   status: string
   executed_at?: string
 }
+
+export interface ToolEvent {
+  id: number
+  timestamp: string
+  approval_id: number
+  event_type: string
+  tool: string
+  risk: number
+  status: string
+  details: unknown
+}

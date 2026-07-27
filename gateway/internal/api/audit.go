@@ -19,5 +19,9 @@ var auditStore = func() *audit.Store {
 		log.Fatalf("initialize audit store: %v", err)
 	}
 
+	if err := store.EnsureToolEvents(); err != nil {
+		log.Fatalf("initialize tool audit events: %v", err)
+	}
+
 	return store
 }()

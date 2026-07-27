@@ -3,16 +3,19 @@ import {
   approveRequest,
   executeRequest,
   fetchApprovals,
+  fetchToolEvents,
   fetchEvents,
   fetchStats,
   rejectRequest,
 } from './api'
 import type {
   Approval,
+  ToolEvent,
   AuditEvent,
   AuditStats,
 } from './types'
 import './App.css'
+import ToolTimeline from './ToolTimeline'
 
 function StatCard({
   label,
@@ -34,6 +37,8 @@ function App() {
   const [events, setEvents] = useState<AuditEvent[]>([])
   const [approvals, setApprovals] = useState<Approval[]>([])
   const [selected, setSelected] = useState<AuditEvent | null>(null)
+  const [selectedApproval, setSelectedApproval] = useState<Approval | null>(null)
+  const [toolEvents, setToolEvents] = useState<ToolEvent[]>([])
   const [error, setError] = useState('')
 
   async function loadData() {
@@ -53,6 +58,16 @@ function App() {
       setError(
         err instanceof Error ? err.message : 'unknown error',
       )
+    }
+  }
+
+  async function openApproval(approval: Approval) {
+    try {
+      const events = await fetchToolEvents(approval.id)
+      setSelectedApproval(approval)
+      setToolEvents(events)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'failed to load tool events')
     }
   }
 
@@ -159,6 +174,7 @@ function App() {
               <div
                 className="approval-card"
                 key={approval.id}
+                onClick={() => void openApproval(approval)}
               >
                 <div className="approval-main">
                   <div className="approval-title">
@@ -278,6 +294,17 @@ function App() {
           </table>
         </div>
       </section>
+
+      {selectedApproval && (
+        <ToolTimeline
+          approval={selectedApproval}
+          events={toolEvents}
+          onClose={() => {
+            setSelectedApproval(null)
+            setToolEvents([])
+          }}
+        />
+      )}
 
       {selected && (
         <section className="panel details">
