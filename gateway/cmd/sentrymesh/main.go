@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+
+	"github.com/namtran1812/sentrymesh/gateway/internal/api"
 )
 
 type HealthResponse struct {
@@ -14,21 +16,19 @@ type HealthResponse struct {
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
 
-	if err := json.NewEncoder(w).Encode(HealthResponse{
+	_ = json.NewEncoder(w).Encode(HealthResponse{
 		Status:  "ok",
 		Service: "sentrymesh-gateway",
 		Version: "0.1.0",
-	}); err != nil {
-		log.Printf("failed to encode health response: %v", err)
-	}
+	})
 }
 
 func main() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /health", healthHandler)
+	mux.HandleFunc("POST /v1/chat/completions", api.ChatHandler)
 
 	server := &http.Server{
 		Addr:    ":8080",
