@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"time"
 
+	"github.com/namtran1812/sentrymesh/gateway/internal/audit"
 	"github.com/namtran1812/sentrymesh/gateway/internal/provider"
 	"github.com/namtran1812/sentrymesh/gateway/internal/risk"
 	"github.com/namtran1812/sentrymesh/gateway/internal/scanner"
@@ -53,6 +55,7 @@ func ChatHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	requestID := newRequestID()
+	started := time.Now()
 
 	var req ChatRequest
 
@@ -181,6 +184,26 @@ func ChatHandler(w http.ResponseWriter, r *http.Request) {
 	if len(outputScan.PIIFindings) > 0 {
 		message = "request allowed after output redaction"
 	}
+
+	latency := time.Since(started).Milliseconds()
+
+	_ = auditStore.Write(
+		r.Context(),
+		audit.Event{
+			RequestID:         requestID,
+			Timestamp:         time.Now(),
+			Provider:          req.Provider,
+			Model:             req.Model,
+			Decision:          riskDecision.Action,
+			RiskScore:         riskDecision.Score,
+			Severity:          riskDecision.Severity,
+			LatencyMS:         latency,
+			SecretFindings:    secretFindings,
+			PIIFindings:       piiFindings,
+			InjectionFindings: injectionFindings,
+			OutputFindings:    outputScan,
+		},
+	)
 
 	w.WriteHeader(http.StatusOK)
 
