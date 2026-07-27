@@ -17,7 +17,7 @@ func Evaluate(input Input) Decision {
 	score := 0
 
 	if input.PIICount > 0 {
-		score += 20
+		score += 30
 	}
 
 	if input.SecretCount > 0 {
@@ -32,23 +32,33 @@ func Evaluate(input Input) Decision {
 		score = 100
 	}
 
-	decision := Decision{
-		Score:    score,
-		Severity: "LOW",
-		Action:   "ALLOW",
-	}
-
 	switch {
 	case score >= 80:
-		decision.Severity = "CRITICAL"
-		decision.Action = "BLOCK"
-	case score >= 60:
-		decision.Severity = "HIGH"
-		decision.Action = "REVIEW"
-	case score >= 30:
-		decision.Severity = "MEDIUM"
-		decision.Action = "ALLOW_WITH_REDACTION"
-	}
+		return Decision{
+			Score:    score,
+			Severity: "CRITICAL",
+			Action:   "BLOCK",
+		}
 
-	return decision
+	case score >= 60:
+		return Decision{
+			Score:    score,
+			Severity: "HIGH",
+			Action:   "REVIEW",
+		}
+
+	case score >= 30:
+		return Decision{
+			Score:    score,
+			Severity: "MEDIUM",
+			Action:   "ALLOW_WITH_REDACTION",
+		}
+
+	default:
+		return Decision{
+			Score:    score,
+			Severity: "LOW",
+			Action:   "ALLOW",
+		}
+	}
 }
