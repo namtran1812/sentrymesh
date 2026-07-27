@@ -66,8 +66,8 @@ func ExecuteApprovalHandler(
 	if err != nil {
 		http.Error(
 			w,
-			`{"error":"failed to claim execution"}`,
-			http.StatusInternalServerError,
+			`{"error":"execution claim conflict"}`,
+			http.StatusConflict,
 		)
 		return
 	}
