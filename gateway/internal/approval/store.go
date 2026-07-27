@@ -19,13 +19,14 @@ const (
 )
 
 type Request struct {
-	ID        int64           `json:"id"`
-	CreatedAt string          `json:"created_at"`
-	Tool      string          `json:"tool"`
-	Arguments json.RawMessage `json:"arguments"`
-	Risk      int             `json:"risk"`
-	Reason    string          `json:"reason"`
-	Status    Status          `json:"status"`
+	ExecutedAt *string         `json:"executed_at,omitempty"`
+	ID         int64           `json:"id"`
+	CreatedAt  string          `json:"created_at"`
+	Tool       string          `json:"tool"`
+	Arguments  json.RawMessage `json:"arguments"`
+	Risk       int             `json:"risk"`
+	Reason     string          `json:"reason"`
+	Status     Status          `json:"status"`
 }
 
 type Store struct {
@@ -57,7 +58,8 @@ func (s *Store) migrate() error {
 			arguments TEXT NOT NULL,
 			risk INTEGER NOT NULL,
 			reason TEXT NOT NULL,
-			status TEXT NOT NULL
+			status TEXT NOT NULL,
+			executed_at TEXT
 		);
 	`)
 
@@ -129,7 +131,8 @@ func (s *Store) ListPending(ctx context.Context) ([]Request, error) {
 			arguments,
 			risk,
 			reason,
-			status
+			status,
+			executed_at
 		FROM approvals
 		WHERE status = ?
 		ORDER BY id DESC
@@ -200,4 +203,50 @@ func (s *Store) SetStatus(
 
 func (s *Store) Close() error {
 	return s.db.Close()
+}
+
+func (s *Store) Get(
+	ctx context.Context,
+	id int64,
+) (Request, error) {
+	var item Request
+	var arguments string
+
+	err := s.db.QueryRowContext(
+		ctx,
+		`
+		SELECT
+			id,
+			created_at,
+			tool,
+			arguments,
+			risk,
+			reason,
+			status
+		FROM approvals
+		WHERE id = ?
+		`,
+		id,
+	).Scan(
+		&item.ID,
+		&item.CreatedAt,
+		&item.Tool,
+		&arguments,
+		&item.Risk,
+		&item.Reason,
+		&item.Status,
+		&item.ExecutedAt,
+	)
+
+	if err != nil {
+		return Request{}, err
+	}
+
+	item.Arguments = json.RawMessage(arguments)
+
+	return item, nil
+}
+
+func (s *Store) DB() *sql.DB {
+	return s.db
 }

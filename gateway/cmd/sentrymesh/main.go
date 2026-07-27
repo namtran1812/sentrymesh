@@ -36,6 +36,7 @@ func main() {
 	mux.HandleFunc("GET /v1/approvals", api.ListApprovalsHandler)
 	mux.HandleFunc("POST /v1/approvals/{id}/approve", api.ApproveHandler)
 	mux.HandleFunc("POST /v1/approvals/{id}/reject", api.RejectHandler)
+	mux.HandleFunc("POST /v1/approvals/{id}/execute", api.ExecuteApprovalHandler)
 
 	server := &http.Server{
 		Addr:    ":8080",
