@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/namtran1812/sentrymesh/gateway/internal/provider"
 	"github.com/namtran1812/sentrymesh/gateway/internal/risk"
 	"github.com/namtran1812/sentrymesh/gateway/internal/scanner"
 )
@@ -18,6 +19,7 @@ type Message struct {
 
 type ChatRequest struct {
 	Model    string    `json:"model"`
+	Provider string    `json:"provider,omitempty"`
 	Messages []Message `json:"messages"`
 }
 
@@ -28,10 +30,17 @@ type SecurityResponse struct {
 	Severity          string                     `json:"severity"`
 	Message           string                     `json:"message"`
 	SanitizedPrompt   string                     `json:"sanitized_prompt,omitempty"`
+	ModelResponse     string                     `json:"model_response,omitempty"`
 	SecretFindings    []scanner.Finding          `json:"secret_findings,omitempty"`
 	PIIFindings       []scanner.PIIFinding       `json:"pii_findings,omitempty"`
 	InjectionFindings []scanner.InjectionFinding `json:"injection_findings,omitempty"`
 }
+
+var providerRouter = func() *provider.Router {
+	router := provider.NewRouter()
+	router.Register("mock", provider.NewMockProvider())
+	return router
+}()
 
 func newRequestID() string {
 	bytes := make([]byte, 8)
@@ -60,6 +69,10 @@ func ChatHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.Provider == "" {
+		req.Provider = "mock"
+	}
+
 	var content strings.Builder
 
 	for _, message := range req.Messages {
@@ -74,6 +87,7 @@ func ChatHandler(w http.ResponseWriter, r *http.Request) {
 	sanitizedPrompt, piiFindings := scanner.ScanAndRedactPII(rawPrompt)
 
 	maxInjectionScore := 0
+
 	for _, finding := range injectionFindings {
 		if finding.Confidence > maxInjectionScore {
 			maxInjectionScore = finding.Confidence
@@ -87,21 +101,64 @@ func ChatHandler(w http.ResponseWriter, r *http.Request) {
 		MaxInjection:   maxInjectionScore,
 	})
 
-	status := http.StatusOK
+	if riskDecision.Action == "BLOCK" {
+		w.WriteHeader(http.StatusForbidden)
+
+		_ = json.NewEncoder(w).Encode(SecurityResponse{
+			RequestID:         requestID,
+			Decision:          riskDecision.Action,
+			RiskScore:         riskDecision.Score,
+			Severity:          riskDecision.Severity,
+			Message:           "request blocked by SentryMesh security policy",
+			SanitizedPrompt:   sanitizedPrompt,
+			SecretFindings:    secretFindings,
+			PIIFindings:       piiFindings,
+			InjectionFindings: injectionFindings,
+		})
+
+		return
+	}
+
+	providerMessages := make([]provider.Message, 0, len(req.Messages))
+
+	for _, message := range req.Messages {
+		sanitizedContent, _ := scanner.ScanAndRedactPII(message.Content)
+
+		providerMessages = append(
+			providerMessages,
+			provider.Message{
+				Role:    message.Role,
+				Content: sanitizedContent,
+			},
+		)
+	}
+
+	modelResponse, err := providerRouter.Chat(
+		r.Context(),
+		req.Provider,
+		provider.Request{
+			Model:    req.Model,
+			Messages: providerMessages,
+		},
+	)
+
+	if err != nil {
+		writeError(
+			w,
+			http.StatusBadGateway,
+			requestID,
+			"model provider request failed",
+		)
+		return
+	}
+
 	message := "request passed SentryMesh security checks"
 
-	switch riskDecision.Action {
-	case "BLOCK":
-		status = http.StatusForbidden
-		message = "request blocked by SentryMesh security policy"
-	case "REVIEW":
-		status = http.StatusAccepted
-		message = "request requires security review"
-	case "ALLOW_WITH_REDACTION":
+	if riskDecision.Action == "ALLOW_WITH_REDACTION" {
 		message = "request allowed after sensitive data redaction"
 	}
 
-	w.WriteHeader(status)
+	w.WriteHeader(http.StatusOK)
 
 	_ = json.NewEncoder(w).Encode(SecurityResponse{
 		RequestID:         requestID,
@@ -110,13 +167,19 @@ func ChatHandler(w http.ResponseWriter, r *http.Request) {
 		Severity:          riskDecision.Severity,
 		Message:           message,
 		SanitizedPrompt:   sanitizedPrompt,
+		ModelResponse:     modelResponse.Content,
 		SecretFindings:    secretFindings,
 		PIIFindings:       piiFindings,
 		InjectionFindings: injectionFindings,
 	})
 }
 
-func writeError(w http.ResponseWriter, status int, requestID string, message string) {
+func writeError(
+	w http.ResponseWriter,
+	status int,
+	requestID string,
+	message string,
+) {
 	w.WriteHeader(status)
 
 	_ = json.NewEncoder(w).Encode(map[string]string{
