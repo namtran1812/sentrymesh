@@ -27,9 +27,19 @@ func (p *MockProvider) Chat(
 
 	last := req.Messages[len(req.Messages)-1]
 
+	content := "Mock model response to: " + last.Content
+
+	if last.Content == "TEST_OUTPUT_PII" {
+		content = "Contact alice@example.com for assistance."
+	}
+
+	if last.Content == "TEST_OUTPUT_SECRET" {
+		content = "Leaked key: AKIA1234567890ABCDEF"
+	}
+
 	return Response{
 		ID:      "mock_completion",
 		Model:   req.Model,
-		Content: "Mock model response to: " + last.Content,
+		Content: content,
 	}, nil
 }

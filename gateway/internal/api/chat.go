@@ -34,13 +34,10 @@ type SecurityResponse struct {
 	SecretFindings    []scanner.Finding          `json:"secret_findings,omitempty"`
 	PIIFindings       []scanner.PIIFinding       `json:"pii_findings,omitempty"`
 	InjectionFindings []scanner.InjectionFinding `json:"injection_findings,omitempty"`
+	OutputFindings    *scanner.OutputScan        `json:"output_scan,omitempty"`
 }
 
-var providerRouter = func() *provider.Router {
-	router := provider.NewRouter()
-	router.Register("mock", provider.NewMockProvider())
-	return router
-}()
+var providerRouter = provider.NewDefaultRouter()
 
 func newRequestID() string {
 	bytes := make([]byte, 8)
@@ -152,10 +149,37 @@ func ChatHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	outputScan := scanner.ScanOutput(modelResponse.Content)
+
+	if !outputScan.Safe {
+		w.WriteHeader(http.StatusForbidden)
+
+		_ = json.NewEncoder(w).Encode(SecurityResponse{
+			RequestID:         requestID,
+			Decision:          "BLOCK",
+			RiskScore:         100,
+			Severity:          "CRITICAL",
+			Message:           "model output blocked by SentryMesh security policy",
+			SanitizedPrompt:   sanitizedPrompt,
+			SecretFindings:    secretFindings,
+			PIIFindings:       piiFindings,
+			InjectionFindings: injectionFindings,
+			OutputFindings:    &outputScan,
+		})
+
+		return
+	}
+
+	finalOutput := outputScan.Redacted
+
 	message := "request passed SentryMesh security checks"
 
 	if riskDecision.Action == "ALLOW_WITH_REDACTION" {
 		message = "request allowed after sensitive data redaction"
+	}
+
+	if len(outputScan.PIIFindings) > 0 {
+		message = "request allowed after output redaction"
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -167,10 +191,11 @@ func ChatHandler(w http.ResponseWriter, r *http.Request) {
 		Severity:          riskDecision.Severity,
 		Message:           message,
 		SanitizedPrompt:   sanitizedPrompt,
-		ModelResponse:     modelResponse.Content,
+		ModelResponse:     finalOutput,
 		SecretFindings:    secretFindings,
 		PIIFindings:       piiFindings,
 		InjectionFindings: injectionFindings,
+		OutputFindings:    &outputScan,
 	})
 }
 
