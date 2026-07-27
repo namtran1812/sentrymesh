@@ -1,6 +1,17 @@
 import { useEffect, useState } from 'react'
-import { fetchEvents, fetchStats } from './api'
-import type { AuditEvent, AuditStats } from './types'
+import {
+  approveRequest,
+  executeRequest,
+  fetchApprovals,
+  fetchEvents,
+  fetchStats,
+  rejectRequest,
+} from './api'
+import type {
+  Approval,
+  AuditEvent,
+  AuditStats,
+} from './types'
 import './App.css'
 
 function StatCard({
@@ -21,21 +32,60 @@ function StatCard({
 function App() {
   const [stats, setStats] = useState<AuditStats | null>(null)
   const [events, setEvents] = useState<AuditEvent[]>([])
+  const [approvals, setApprovals] = useState<Approval[]>([])
   const [selected, setSelected] = useState<AuditEvent | null>(null)
   const [error, setError] = useState('')
 
   async function loadData() {
     try {
-      const [statsData, eventsData] = await Promise.all([
-        fetchStats(),
-        fetchEvents(),
-      ])
+      const [statsData, eventsData, approvalData] =
+        await Promise.all([
+          fetchStats(),
+          fetchEvents(),
+          fetchApprovals(),
+        ])
 
       setStats(statsData)
       setEvents(eventsData)
+      setApprovals(approvalData)
       setError('')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'unknown error')
+      setError(
+        err instanceof Error ? err.message : 'unknown error',
+      )
+    }
+  }
+
+  async function approve(id: number) {
+    try {
+      await approveRequest(id)
+      await loadData()
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'approve failed',
+      )
+    }
+  }
+
+  async function reject(id: number) {
+    try {
+      await rejectRequest(id)
+      await loadData()
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'reject failed',
+      )
+    }
+  }
+
+  async function execute(id: number) {
+    try {
+      await executeRequest(id)
+      await loadData()
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'execution failed',
+      )
     }
   }
 
@@ -82,17 +132,88 @@ function App() {
           value={stats?.blocked_requests ?? '-'}
         />
         <StatCard
+          label="Pending Approvals"
+          value={approvals.length}
+        />
+        <StatCard
           label="Average Risk"
           value={stats?.average_risk_score.toFixed(1) ?? '-'}
         />
-        <StatCard
-          label="Average Latency"
-          value={
-            stats
-              ? `${stats.average_latency_ms.toFixed(0)} ms`
-              : '-'
-          }
-        />
+      </section>
+
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <h2>Pending Agent Actions</h2>
+            <p>Human approval required before execution</p>
+          </div>
+        </div>
+
+        {approvals.length === 0 ? (
+          <div className="empty">
+            No pending approvals
+          </div>
+        ) : (
+          <div className="approval-list">
+            {approvals.map((approval) => (
+              <div
+                className="approval-card"
+                key={approval.id}
+              >
+                <div className="approval-main">
+                  <div className="approval-title">
+                    {approval.tool}
+                  </div>
+
+                  <div className="approval-reason">
+                    {approval.reason}
+                  </div>
+
+                  <pre>
+                    {JSON.stringify(
+                      approval.arguments,
+                      null,
+                      2,
+                    )}
+                  </pre>
+                </div>
+
+                <div className="approval-meta">
+                  <div>
+                    Risk
+                    <strong>{approval.risk}</strong>
+                  </div>
+
+                  <button
+                    onClick={() =>
+                      void approve(approval.id)
+                    }
+                  >
+                    Approve
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      void reject(approval.id)
+                    }
+                  >
+                    Reject
+                  </button>
+
+                  {approval.status === 'APPROVED' && (
+                    <button
+                      onClick={() =>
+                        void execute(approval.id)
+                      }
+                    >
+                      Execute
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="panel">
@@ -129,11 +250,18 @@ function App() {
                   onClick={() => setSelected(event)}
                 >
                   <td>
-                    {new Date(event.timestamp).toLocaleTimeString()}
+                    {new Date(
+                      event.timestamp,
+                    ).toLocaleTimeString()}
                   </td>
-                  <td className="mono">{event.request_id}</td>
+
+                  <td className="mono">
+                    {event.request_id}
+                  </td>
+
                   <td>{event.provider}</td>
                   <td>{event.model}</td>
+
                   <td>
                     <span
                       className={`badge ${event.decision.toLowerCase()}`}
@@ -141,6 +269,7 @@ function App() {
                       {event.decision}
                     </span>
                   </td>
+
                   <td>{event.risk_score}</td>
                   <td>{event.latency_ms} ms</td>
                 </tr>
@@ -155,7 +284,9 @@ function App() {
           <div className="panel-header">
             <div>
               <h2>Request Trace</h2>
-              <p className="mono">{selected.request_id}</p>
+              <p className="mono">
+                {selected.request_id}
+              </p>
             </div>
 
             <button onClick={() => setSelected(null)}>
@@ -181,28 +312,46 @@ function App() {
 
             <div>
               <span>Latency</span>
-              <strong>{selected.latency_ms} ms</strong>
+              <strong>
+                {selected.latency_ms} ms
+              </strong>
             </div>
           </div>
 
           <h3>PII Findings</h3>
           <pre>
-            {JSON.stringify(selected.pii_findings, null, 2)}
+            {JSON.stringify(
+              selected.pii_findings,
+              null,
+              2,
+            )}
           </pre>
 
           <h3>Injection Findings</h3>
           <pre>
-            {JSON.stringify(selected.injection_findings, null, 2)}
+            {JSON.stringify(
+              selected.injection_findings,
+              null,
+              2,
+            )}
           </pre>
 
           <h3>Secret Findings</h3>
           <pre>
-            {JSON.stringify(selected.secret_findings, null, 2)}
+            {JSON.stringify(
+              selected.secret_findings,
+              null,
+              2,
+            )}
           </pre>
 
           <h3>Output Scan</h3>
           <pre>
-            {JSON.stringify(selected.output_findings, null, 2)}
+            {JSON.stringify(
+              selected.output_findings,
+              null,
+              2,
+            )}
           </pre>
         </section>
       )}

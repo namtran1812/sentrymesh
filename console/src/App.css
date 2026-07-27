@@ -242,3 +242,63 @@ pre {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+.approval-list {
+  padding: 16px;
+}
+
+.approval-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  border: 1px solid #27272a;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+  background: #0c0c0e;
+}
+
+.approval-main {
+  flex: 1;
+}
+
+.approval-title {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.approval-reason {
+  color: #a1a1aa;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.approval-card pre {
+  margin: 0;
+}
+
+.approval-meta {
+  min-width: 130px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.approval-meta div {
+  color: #71717a;
+  font-size: 11px;
+}
+
+.approval-meta strong {
+  color: #fafafa;
+  display: block;
+  font-size: 22px;
+  margin-top: 3px;
+}
+
+.empty {
+  padding: 30px;
+  color: #71717a;
+  text-align: center;
+}

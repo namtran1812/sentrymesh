@@ -41,3 +41,14 @@ export interface AuditEvent {
   injection_findings: Finding[]
   output_findings: OutputScan | null
 }
+
+export interface Approval {
+  id: number
+  created_at: string
+  tool: string
+  arguments: Record<string, unknown>
+  risk: number
+  reason: string
+  status: string
+  executed_at?: string
+}

@@ -21,3 +21,48 @@ export async function fetchEvents(): Promise<AuditEvent[]> {
 
   return response.json()
 }
+
+import type { Approval } from './types'
+
+export async function fetchApprovals(): Promise<Approval[]> {
+  const response = await fetch(`${API_BASE}/v1/approvals`)
+
+  if (!response.ok) {
+    throw new Error(`approvals request failed: ${response.status}`)
+  }
+
+  return response.json()
+}
+
+export async function approveRequest(id: number): Promise<void> {
+  const response = await fetch(
+    `${API_BASE}/v1/approvals/${id}/approve`,
+    { method: 'POST' },
+  )
+
+  if (!response.ok) {
+    throw new Error(`approve failed: ${response.status}`)
+  }
+}
+
+export async function rejectRequest(id: number): Promise<void> {
+  const response = await fetch(
+    `${API_BASE}/v1/approvals/${id}/reject`,
+    { method: 'POST' },
+  )
+
+  if (!response.ok) {
+    throw new Error(`reject failed: ${response.status}`)
+  }
+}
+
+export async function executeRequest(id: number): Promise<void> {
+  const response = await fetch(
+    `${API_BASE}/v1/approvals/${id}/execute`,
+    { method: 'POST' },
+  )
+
+  if (!response.ok) {
+    throw new Error(`execute failed: ${response.status}`)
+  }
+}
