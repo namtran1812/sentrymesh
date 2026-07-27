@@ -33,6 +33,9 @@ func main() {
 	mux.HandleFunc("GET /v1/audit/events", api.AuditEventsHandler)
 	mux.HandleFunc("GET /v1/audit/stats", api.AuditStatsHandler)
 	mux.HandleFunc("POST /v1/tools/evaluate", api.ToolEvaluationHandler)
+	mux.HandleFunc("GET /v1/approvals", api.ListApprovalsHandler)
+	mux.HandleFunc("POST /v1/approvals/{id}/approve", api.ApproveHandler)
+	mux.HandleFunc("POST /v1/approvals/{id}/reject", api.RejectHandler)
 
 	server := &http.Server{
 		Addr:    ":8080",

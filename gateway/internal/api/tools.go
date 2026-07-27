@@ -12,6 +12,11 @@ type ToolEvaluationRequest struct {
 	Arguments map[string]any `json:"arguments"`
 }
 
+type ToolEvaluationResponse struct {
+	tools.Evaluation
+	ApprovalID *int64 `json:"approval_id,omitempty"`
+}
+
 func ToolEvaluationHandler(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -45,9 +50,30 @@ func ToolEvaluationHandler(
 		},
 	)
 
+	response := ToolEvaluationResponse{
+		Evaluation: result,
+	}
+
 	status := http.StatusOK
 
 	if result.Decision == tools.RequireApproval {
+		approval, err := approvalStore.Create(
+			r.Context(),
+			req.Name,
+			req.Arguments,
+			result.Risk,
+			result.Reason,
+		)
+		if err != nil {
+			http.Error(
+				w,
+				`{"error":"failed to create approval request"}`,
+				http.StatusInternalServerError,
+			)
+			return
+		}
+
+		response.ApprovalID = &approval.ID
 		status = http.StatusAccepted
 	}
 
@@ -56,5 +82,5 @@ func ToolEvaluationHandler(
 	}
 
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(result)
+	_ = json.NewEncoder(w).Encode(response)
 }
