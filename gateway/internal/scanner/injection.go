@@ -53,7 +53,7 @@ var injectionPatterns = []struct {
 	},
 }
 
-func ScanPromptInjection(input string) []InjectionFinding {
+func scanPromptInjectionRaw(input string) []InjectionFinding {
 	findings := make([]InjectionFinding, 0)
 
 	normalized := strings.Join(strings.Fields(input), " ")
@@ -74,4 +74,12 @@ func ScanPromptInjection(input string) []InjectionFinding {
 	}
 
 	return findings
+}
+
+func ScanPromptInjection(input string) []InjectionFinding {
+	if isBenignInjectionDiscussion(input) {
+		return nil
+	}
+
+	return scanPromptInjectionRaw(input)
 }

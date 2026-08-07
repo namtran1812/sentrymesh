@@ -1,26 +1,26 @@
 {
-  "timestamp": "2026-08-07T20:38:51.567648Z",
+  "timestamp": "2026-08-07T20:41:53.770434Z",
   "prompt_injection": {
-    "total": 13,
-    "passed": 13,
+    "total": 21,
+    "passed": 21,
     "failed": 0,
     "accuracy": 1,
     "precision": 1,
     "recall": 1,
-    "average_latency_ns": 33522
+    "average_latency_ns": 10777
   },
   "pii": {
     "total": 4,
     "passed": 4,
     "failed": 0,
     "accuracy": 1,
-    "average_latency_ns": 10853
+    "average_latency_ns": 3802
   },
   "rag": {
-    "total": 7,
-    "passed": 7,
+    "total": 8,
+    "passed": 8,
     "failed": 0,
     "accuracy": 1,
-    "average_latency_ns": 22148
+    "average_latency_ns": 9041
   }
 }
