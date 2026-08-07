@@ -2,8 +2,11 @@ package api
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
+	"time"
 
+	"github.com/namtran1812/sentrymesh/gateway/internal/audit"
 	"github.com/namtran1812/sentrymesh/gateway/internal/middleware"
 	"github.com/namtran1812/sentrymesh/gateway/internal/rag"
 )
@@ -49,6 +52,26 @@ func RAGContextHandler(
 		principal,
 		req.Documents,
 	)
+
+	err := auditStore.WriteRAGEvent(
+		r.Context(),
+		audit.RAGEvent{
+			RequestID: req.RequestID,
+			Timestamp: time.Now(),
+			UserID:    principal.UserID,
+			Role:      string(principal.Role),
+			Team:      principal.Team,
+			Trace:     result.Trace,
+		},
+	)
+
+	if err != nil {
+		log.Printf(
+			"failed to write RAG provenance request=%s: %v",
+			req.RequestID,
+			err,
+		)
+	}
 
 	_ = json.NewEncoder(w).Encode(result)
 }

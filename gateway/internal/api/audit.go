@@ -27,5 +27,9 @@ var auditStore = func() *audit.Store {
 		log.Fatalf("initialize auth audit events: %v", err)
 	}
 
+	if err := store.EnsureRAGEvents(); err != nil {
+		log.Fatalf("initialize RAG audit events: %v", err)
+	}
+
 	return store
 }()
