@@ -63,3 +63,22 @@ export interface ToolEvent {
   status: string
   details: unknown
 }
+
+export interface EvalMetric {
+  total: number
+  passed: number
+  failed: number
+  accuracy: number
+  precision?: number
+  recall?: number
+  false_positives?: number
+  false_negatives?: number
+  average_latency_ns: number
+}
+
+export interface EvalResults {
+  timestamp: string
+  prompt_injection: EvalMetric
+  pii: EvalMetric
+  rag: EvalMetric
+}

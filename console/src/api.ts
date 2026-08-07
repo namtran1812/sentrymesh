@@ -82,3 +82,24 @@ export async function fetchToolEvents(
 
   return response.json()
 }
+
+export async function fetchEvalResults(): Promise<
+  import('./types').EvalResults
+> {
+  const response = await fetch(
+    `${API_BASE}/v1/evals/latest`,
+    {
+      headers: {
+        Authorization: 'Bearer sm_admin_dev',
+      },
+    },
+  )
+
+  if (!response.ok) {
+    throw new Error(
+      `eval results request failed: ${response.status}`,
+    )
+  }
+
+  return response.json()
+}
