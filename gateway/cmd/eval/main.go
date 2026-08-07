@@ -482,6 +482,180 @@ func writeReport(
 	)
 }
 
+func writeHistoricalReport(
+	report EvalReport,
+) {
+	reportData, err := json.MarshalIndent(
+		report,
+		"",
+		"  ",
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	root := os.Getenv("SENTRYMESH_ROOT")
+	if root == "" {
+		root = ".."
+	}
+
+	resultDir := filepath.Join(
+		root,
+		"evals",
+		"results",
+	)
+
+	historyDir := filepath.Join(
+		resultDir,
+		"history",
+	)
+
+	if err := os.MkdirAll(
+		historyDir,
+		0755,
+	); err != nil {
+		panic(err)
+	}
+
+	latestPath := filepath.Join(
+		resultDir,
+		"latest.json",
+	)
+
+	if err := os.WriteFile(
+		latestPath,
+		reportData,
+		0644,
+	); err != nil {
+		panic(err)
+	}
+
+	historyName :=
+		report.Timestamp.Format(
+			"20060102T150405.000000000Z",
+		) + ".json"
+
+	historyPath := filepath.Join(
+		historyDir,
+		historyName,
+	)
+
+	if err := os.WriteFile(
+		historyPath,
+		reportData,
+		0644,
+	); err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("\nReport: %s\n", latestPath)
+	fmt.Printf("History: %s\n", historyPath)
+}
+
+func loadPreviousReport() (*EvalReport, error) {
+	root := os.Getenv("SENTRYMESH_ROOT")
+	if root == "" {
+		root = ".."
+	}
+
+	historyDir := filepath.Join(
+		root,
+		"evals",
+		"results",
+		"history",
+	)
+
+	files, err := os.ReadDir(historyDir)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(files) < 2 {
+		return nil, nil
+	}
+
+	latestPrevious := files[len(files)-2]
+
+	data, err := os.ReadFile(
+		filepath.Join(
+			historyDir,
+			latestPrevious.Name(),
+		),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	var report EvalReport
+
+	if err := json.Unmarshal(
+		data,
+		&report,
+	); err != nil {
+		return nil, err
+	}
+
+	return &report, nil
+}
+
+func detectRegression(
+	current EvalReport,
+	previous *EvalReport,
+) bool {
+	if previous == nil {
+		fmt.Println("\nNo previous eval baseline.")
+		return false
+	}
+
+	regression := false
+
+	fmt.Println()
+	fmt.Println("REGRESSION CHECK")
+	fmt.Println("==============================")
+
+	if current.PromptInjection.Recall <
+		previous.PromptInjection.Recall {
+
+		fmt.Printf(
+			"REGRESSION prompt recall %.3f -> %.3f\n",
+			previous.PromptInjection.Recall,
+			current.PromptInjection.Recall,
+		)
+
+		regression = true
+	}
+
+	if current.PromptInjection.FalseNegative >
+		previous.PromptInjection.FalseNegative {
+
+		fmt.Printf(
+			"REGRESSION false negatives %d -> %d\n",
+			previous.PromptInjection.FalseNegative,
+			current.PromptInjection.FalseNegative,
+		)
+
+		regression = true
+	}
+
+	if current.RAG.Accuracy <
+		previous.RAG.Accuracy {
+
+		fmt.Printf(
+			"REGRESSION RAG accuracy %.3f -> %.3f\n",
+			previous.RAG.Accuracy,
+			current.RAG.Accuracy,
+		)
+
+		regression = true
+	}
+
+	if !regression {
+		fmt.Println("PASS no security regression detected")
+	}
+
+	return regression
+}
+
 func main() {
 	injection := runInjection()
 	pii := runPII()
@@ -502,15 +676,25 @@ func main() {
 		ragMetrics,
 	)
 
-	writeReport(
-		injection,
-		pii,
-		ragMetrics,
-	)
+	report := EvalReport{
+		Timestamp:       time.Now().UTC(),
+		PromptInjection: metricReport(injection),
+		PII:             metricReport(pii),
+		RAG:             metricReport(ragMetrics),
+	}
+
+	writeHistoricalReport(report)
+
+	previous, err := loadPreviousReport()
+	if err != nil {
+		fmt.Printf("warning: could not load previous report: %v\\n", err)
+	}
+
+	regression := detectRegression(report, previous)
 
 	if injection.Failed+
 		pii.Failed+
-		ragMetrics.Failed > 0 {
+		ragMetrics.Failed > 0 || regression {
 
 		os.Exit(1)
 	}
