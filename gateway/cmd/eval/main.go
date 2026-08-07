@@ -566,32 +566,44 @@ func loadPreviousReport() (*EvalReport, error) {
 	)
 
 	files, err := os.ReadDir(historyDir)
-	if err != nil {
-		return nil, err
+	if err == nil && len(files) >= 2 {
+		previous := files[len(files)-2]
+
+		data, err := os.ReadFile(
+			filepath.Join(historyDir, previous.Name()),
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		var report EvalReport
+
+		if err := json.Unmarshal(data, &report); err != nil {
+			return nil, err
+		}
+
+		return &report, nil
 	}
 
-	if len(files) < 2 {
-		return nil, nil
-	}
-
-	latestPrevious := files[len(files)-2]
-
-	data, err := os.ReadFile(
-		filepath.Join(
-			historyDir,
-			latestPrevious.Name(),
-		),
+	baselinePath := filepath.Join(
+		root,
+		"evals",
+		"results",
+		"baseline.json",
 	)
+
+	data, err := os.ReadFile(baselinePath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+
 		return nil, err
 	}
 
 	var report EvalReport
 
-	if err := json.Unmarshal(
-		data,
-		&report,
-	); err != nil {
+	if err := json.Unmarshal(data, &report); err != nil {
 		return nil, err
 	}
 

@@ -1,0 +1,84 @@
+name: SentryMesh Security CI
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Go Tests
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: gateway
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: gateway/go.mod
+          cache-dependency-path: gateway/go.sum
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Format check
+        run: |
+          files=$(gofmt -l .)
+
+          if [ -n "$files" ]; then
+            echo "The following files are not formatted:"
+            echo "$files"
+            exit 1
+          fi
+
+      - name: Run tests
+        run: go test ./...
+
+  security-evals:
+    name: Security Evals
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: gateway/go.mod
+          cache-dependency-path: gateway/go.sum
+
+      - name: Download dependencies
+        working-directory: gateway
+        run: go mod download
+
+      - name: Run security evals
+        run: make eval
+
+      - name: Show eval report
+        if: always()
+        run: |
+          if [ -f evals/results/latest.json ]; then
+            cat evals/results/latest.json
+          fi
+
+      - name: Upload eval report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sentrymesh-security-eval
+          path: |
+            evals/results/latest.json
+            evals/results/history/*.json
+          if-no-files-found: ignore
