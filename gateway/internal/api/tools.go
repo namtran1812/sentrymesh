@@ -29,12 +29,7 @@ func ToolEvaluationHandler(
 
 	var req ToolEvaluationRequest
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(
-			w,
-			`{"error":"invalid request body"}`,
-			http.StatusBadRequest,
-		)
+	if err := decodeJSON(w, r, &req); err != nil {
 		return
 	}
 

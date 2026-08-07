@@ -150,8 +150,11 @@ func ChatHandler(w http.ResponseWriter, r *http.Request) {
 		)
 	}
 
+	providerCtx, cancelProvider := providerContext(r)
+	defer cancelProvider()
+
 	modelResponse, err := providerRouter.Chat(
-		r.Context(),
+		providerCtx,
 		req.Provider,
 		provider.Request{
 			Model:    req.Model,
@@ -160,10 +163,18 @@ func ChatHandler(w http.ResponseWriter, r *http.Request) {
 	)
 
 	if err != nil {
-		writeError(
+		if isProviderTimeout(providerCtx, err) {
+			writeJSONError(
+				w,
+				http.StatusGatewayTimeout,
+				"model provider timed out",
+			)
+			return
+		}
+
+		writeJSONError(
 			w,
 			http.StatusBadGateway,
-			requestID,
 			"model provider request failed",
 		)
 		return

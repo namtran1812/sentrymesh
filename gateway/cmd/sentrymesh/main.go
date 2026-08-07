@@ -1,9 +1,13 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/namtran1812/sentrymesh/gateway/internal/abuse"
@@ -44,10 +48,10 @@ func main() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /health", healthHandler)
-	mux.Handle("POST /v1/chat/completions", middleware.Auth(middleware.TrafficGuard(abuseTracker, apiLimiter, runtime.AuditStore, http.HandlerFunc(api.ChatHandler))))
+	mux.Handle("POST /v1/chat/completions", middleware.BodyLimit(1<<20, middleware.Auth(middleware.TrafficGuard(abuseTracker, apiLimiter, runtime.AuditStore, http.HandlerFunc(api.ChatHandler)))))
 	mux.HandleFunc("GET /v1/audit/events", api.AuditEventsHandler)
 	mux.HandleFunc("GET /v1/audit/stats", api.AuditStatsHandler)
-	mux.Handle("POST /v1/tools/evaluate", middleware.Auth(middleware.TrafficGuard(abuseTracker, apiLimiter, runtime.AuditStore, middleware.RequireScope("tools:evaluate", http.HandlerFunc(api.ToolEvaluationHandler)))))
+	mux.Handle("POST /v1/tools/evaluate", middleware.BodyLimit(1<<20, middleware.Auth(middleware.TrafficGuard(abuseTracker, apiLimiter, runtime.AuditStore, middleware.RequireScope("tools:evaluate", http.HandlerFunc(api.ToolEvaluationHandler))))))
 	mux.HandleFunc("GET /v1/approvals", api.ListApprovalsHandler)
 	mux.Handle("POST /v1/approvals/{id}/approve", middleware.Auth(middleware.RequireScope("approvals:write", http.HandlerFunc(api.ApproveHandler))))
 	mux.Handle("POST /v1/approvals/{id}/reject", middleware.Auth(middleware.RequireScope("approvals:write", http.HandlerFunc(api.RejectHandler))))
@@ -58,21 +62,57 @@ func main() {
 	mux.Handle("GET /v1/security/posture", middleware.Auth(middleware.RequireScope("audit:read", http.HandlerFunc(api.SecurityPostureHandler))))
 	mux.Handle("GET /v1/evals/latest", middleware.Auth(middleware.RequireScope("evals:read", http.HandlerFunc(api.EvalResultsHandler))))
 	mux.Handle("POST /v1/rag/inspect", middleware.Auth(middleware.RequireScope("rag:inspect", http.HandlerFunc(api.RAGInspectHandler))))
-	mux.Handle("POST /v1/rag/context", middleware.Auth(middleware.RequireScope("rag:context", http.HandlerFunc(api.RAGContextHandler))))
-	mux.Handle("POST /v1/rag/chat", middleware.Auth(middleware.TrafficGuard(abuseTracker, apiLimiter, runtime.AuditStore, middleware.RequireScope("rag:chat", http.HandlerFunc(api.RAGChatHandler)))))
+	mux.Handle("POST /v1/rag/context", middleware.BodyLimit(1<<20, middleware.Auth(middleware.RequireScope("rag:context", http.HandlerFunc(api.RAGContextHandler)))))
+	mux.Handle("POST /v1/rag/chat", middleware.BodyLimit(1<<20, middleware.Auth(middleware.TrafficGuard(abuseTracker, apiLimiter, runtime.AuditStore, middleware.RequireScope("rag:chat", http.HandlerFunc(api.RAGChatHandler))))))
 	mux.Handle("GET /v1/rag/requests/{request_id}/provenance", middleware.Auth(middleware.RequireScope("audit:read", http.HandlerFunc(api.RAGEventsHandler))))
-	mux.Handle("POST /v1/keys", middleware.Auth(middleware.RequireScope("keys:manage", http.HandlerFunc(api.CreateKeyHandler))))
+	mux.Handle("POST /v1/keys", middleware.BodyLimit(1<<20, middleware.Auth(middleware.RequireScope("keys:manage", http.HandlerFunc(api.CreateKeyHandler)))))
 	mux.Handle("POST /v1/keys/{id}/revoke", middleware.Auth(middleware.RequireScope("keys:manage", http.HandlerFunc(api.RevokeKeyHandler))))
 	mux.HandleFunc("GET /v1/approvals/{id}/events", api.ToolEventsHandler)
 
 	server := &http.Server{
-		Addr:    ":8080",
-		Handler: middleware.CORS(mux),
+		Addr:              ":8080",
+		Handler:           middleware.CORS(mux),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
-	log.Println("SentryMesh Gateway listening on http://localhost:8080")
+	errCh := make(chan error, 1)
 
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	go func() {
+		log.Println("SentryMesh Gateway listening on http://localhost:8080")
+
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			errCh <- err
+		}
+	}()
+
+	signalCh := make(chan os.Signal, 1)
+
+	signal.Notify(
+		signalCh,
+		syscall.SIGINT,
+		syscall.SIGTERM,
+	)
+
+	select {
+	case err := <-errCh:
 		log.Fatal(err)
+
+	case sig := <-signalCh:
+		log.Printf("received signal %s; shutting down", sig)
 	}
+
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		10*time.Second,
+	)
+	defer cancel()
+
+	if err := server.Shutdown(ctx); err != nil {
+		log.Printf("graceful shutdown failed: %v", err)
+	}
+
+	log.Println("SentryMesh Gateway stopped")
 }
