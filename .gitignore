@@ -22,3 +22,8 @@ node_modules/
 
 # Local security eval history
 evals/results/history/
+
+# Local SQLite runtime databases
+*.db
+*.db-shm
+*.db-wal
