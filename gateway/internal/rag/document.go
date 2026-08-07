@@ -14,4 +14,5 @@ type Document struct {
 	Classification string     `json:"classification"`
 	TrustLevel     TrustLevel `json:"trust_level"`
 	Content        string     `json:"content"`
+	AllowedRoles   []string   `json:"allowed_roles,omitempty"`
 }
