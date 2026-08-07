@@ -162,8 +162,6 @@ function App() {
         />
       </section>
 
-      <EvalMetrics results={evalResults} />
-
       <section className="panel">
         <div className="panel-header">
           <div>
