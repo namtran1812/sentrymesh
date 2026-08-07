@@ -1,0 +1,22 @@
+[
+  {
+    "name": "email",
+    "input": "Email alice@example.com about the outage.",
+    "expected_redactions": 1
+  },
+  {
+    "name": "phone",
+    "input": "Call 352-555-1234.",
+    "expected_redactions": 1
+  },
+  {
+    "name": "ssn",
+    "input": "Customer SSN is 123-45-6789.",
+    "expected_redactions": 1
+  },
+  {
+    "name": "benign",
+    "input": "Summarize the incident report.",
+    "expected_redactions": 0
+  }
+]

@@ -1,0 +1,26 @@
+{
+  "timestamp": "2026-08-07T20:38:51.567648Z",
+  "prompt_injection": {
+    "total": 13,
+    "passed": 13,
+    "failed": 0,
+    "accuracy": 1,
+    "precision": 1,
+    "recall": 1,
+    "average_latency_ns": 33522
+  },
+  "pii": {
+    "total": 4,
+    "passed": 4,
+    "failed": 0,
+    "accuracy": 1,
+    "average_latency_ns": 10853
+  },
+  "rag": {
+    "total": 7,
+    "passed": 7,
+    "failed": 0,
+    "accuracy": 1,
+    "average_latency_ns": 22148
+  }
+}

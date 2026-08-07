@@ -1,4 +1,4 @@
-.PHONY: run test fmt
+.PHONY: run test fmt eval
 
 AUDIT_DB := $(CURDIR)/sentrymesh-audit.db
 APPROVAL_DB := $(CURDIR)/sentrymesh-approvals.db
@@ -16,3 +16,6 @@ test:
 
 fmt:
 	cd gateway && gofmt -w .
+
+eval:
+	cd gateway && SENTRYMESH_ROOT="$(CURDIR)" go run ./cmd/eval
