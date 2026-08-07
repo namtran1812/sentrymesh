@@ -173,10 +173,12 @@ func (s *Store) Resolve(
 	}
 
 	return identity.Identity{
-		UserID: key.UserID,
-		Role:   key.Role,
-		Team:   key.Team,
-		Scopes: splitScopes(key.Scopes),
+		UserID:  key.UserID,
+		Role:    key.Role,
+		Team:    key.Team,
+		Scopes:  splitScopes(key.Scopes),
+		KeyID:   key.ID,
+		KeyName: key.Name,
 	}, nil
 }
 

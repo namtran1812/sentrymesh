@@ -13,4 +13,7 @@ type Identity struct {
 	Role   Role     `json:"role"`
 	Team   string   `json:"team,omitempty"`
 	Scopes []string `json:"scopes,omitempty"`
+
+	KeyID   int64  `json:"key_id,omitempty"`
+	KeyName string `json:"key_name,omitempty"`
 }
