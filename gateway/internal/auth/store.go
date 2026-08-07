@@ -326,3 +326,81 @@ func (s *Store) RevokeByID(
 
 	return nil
 }
+
+func (s *Store) FindByName(
+	ctx context.Context,
+	name string,
+) (KeyRecord, error) {
+	var item KeyRecord
+
+	err := s.db.QueryRowContext(
+		ctx,
+		`
+		SELECT
+			id,
+			name,
+			user_id,
+			role,
+			team,
+			scopes,
+			expires_at,
+			revoked_at,
+			created_at
+		FROM api_keys
+		WHERE name = ?
+		ORDER BY id DESC
+		LIMIT 1
+		`,
+		name,
+	).Scan(
+		&item.ID,
+		&item.Name,
+		&item.UserID,
+		&item.Role,
+		&item.Team,
+		&item.Scopes,
+		&item.ExpiresAt,
+		&item.RevokedAt,
+		&item.CreatedAt,
+	)
+
+	return item, err
+}
+
+func (s *Store) FindByID(
+	ctx context.Context,
+	id int64,
+) (KeyRecord, error) {
+	var item KeyRecord
+
+	err := s.db.QueryRowContext(
+		ctx,
+		`
+		SELECT
+			id,
+			name,
+			user_id,
+			role,
+			team,
+			scopes,
+			expires_at,
+			revoked_at,
+			created_at
+		FROM api_keys
+		WHERE id = ?
+		`,
+		id,
+	).Scan(
+		&item.ID,
+		&item.Name,
+		&item.UserID,
+		&item.Role,
+		&item.Team,
+		&item.Scopes,
+		&item.ExpiresAt,
+		&item.RevokedAt,
+		&item.CreatedAt,
+	)
+
+	return item, err
+}

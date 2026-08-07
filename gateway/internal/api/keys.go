@@ -2,12 +2,15 @@ package api
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/namtran1812/sentrymesh/gateway/internal/audit"
 	"github.com/namtran1812/sentrymesh/gateway/internal/auth"
 	"github.com/namtran1812/sentrymesh/gateway/internal/identity"
+	"github.com/namtran1812/sentrymesh/gateway/internal/middleware"
 )
 
 type CreateKeyRequest struct {
@@ -44,6 +47,16 @@ func CreateKeyHandler(
 ) {
 	w.Header().Set("Content-Type", "application/json")
 
+	actor, ok := middleware.IdentityFromContext(r.Context())
+	if !ok {
+		http.Error(
+			w,
+			`{"error":"authenticated identity unavailable"}`,
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
 	var req CreateKeyRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -71,7 +84,6 @@ func CreateKeyHandler(
 		value := time.Now().Add(
 			time.Duration(req.ExpiresIn) * time.Hour,
 		)
-
 		expiresAt = &value
 	}
 
@@ -97,6 +109,37 @@ func CreateKeyHandler(
 		return
 	}
 
+	key, err := auth.DefaultStore.FindByName(
+		r.Context(),
+		req.Name,
+	)
+	if err == nil {
+		err = auditStore.WriteAuthEvent(
+			r.Context(),
+			audit.AuthEvent{
+				Timestamp: time.Now(),
+				EventType: "API_KEY_CREATED",
+				KeyID:     key.ID,
+				KeyName:   key.Name,
+				Actor:     actor,
+				Details: map[string]any{
+					"user_id":    req.UserID,
+					"role":       req.Role,
+					"team":       req.Team,
+					"scopes":     req.Scopes,
+					"expires_at": key.ExpiresAt,
+				},
+			},
+		)
+
+		if err != nil {
+			log.Printf(
+				"failed to write API_KEY_CREATED event: %v",
+				err,
+			)
+		}
+	}
+
 	_ = json.NewEncoder(w).Encode(
 		map[string]any{
 			"name":    req.Name,
@@ -112,6 +155,16 @@ func RevokeKeyHandler(
 ) {
 	w.Header().Set("Content-Type", "application/json")
 
+	actor, ok := middleware.IdentityFromContext(r.Context())
+	if !ok {
+		http.Error(
+			w,
+			`{"error":"authenticated identity unavailable"}`,
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
 	id, err := strconv.ParseInt(
 		r.PathValue("id"),
 		10,
@@ -126,6 +179,19 @@ func RevokeKeyHandler(
 		return
 	}
 
+	key, err := auth.DefaultStore.FindByID(
+		r.Context(),
+		id,
+	)
+	if err != nil {
+		http.Error(
+			w,
+			`{"error":"key not found"}`,
+			http.StatusNotFound,
+		)
+		return
+	}
+
 	if err := auth.DefaultStore.RevokeByID(
 		r.Context(),
 		id,
@@ -136,6 +202,28 @@ func RevokeKeyHandler(
 			http.StatusNotFound,
 		)
 		return
+	}
+
+	if err := auditStore.WriteAuthEvent(
+		r.Context(),
+		audit.AuthEvent{
+			Timestamp: time.Now(),
+			EventType: "API_KEY_REVOKED",
+			KeyID:     key.ID,
+			KeyName:   key.Name,
+			Actor:     actor,
+			Details: map[string]any{
+				"user_id": key.UserID,
+				"role":    key.Role,
+				"team":    key.Team,
+				"scopes":  key.Scopes,
+			},
+		},
+	); err != nil {
+		log.Printf(
+			"failed to write API_KEY_REVOKED event: %v",
+			err,
+		)
 	}
 
 	_ = json.NewEncoder(w).Encode(

@@ -40,6 +40,7 @@ func main() {
 	mux.Handle("POST /v1/approvals/{id}/reject", middleware.Auth(middleware.RequireScope("approvals:write", http.HandlerFunc(api.RejectHandler))))
 	mux.Handle("POST /v1/approvals/{id}/execute", middleware.Auth(middleware.RequireScope("tools:execute", http.HandlerFunc(api.ExecuteApprovalHandler))))
 	mux.Handle("GET /v1/keys", middleware.Auth(middleware.RequireScope("keys:manage", http.HandlerFunc(api.ListKeysHandler))))
+	mux.Handle("GET /v1/audit/auth-events", middleware.Auth(middleware.RequireScope("audit:read", http.HandlerFunc(api.AuthEventsHandler))))
 	mux.Handle("POST /v1/keys", middleware.Auth(middleware.RequireScope("keys:manage", http.HandlerFunc(api.CreateKeyHandler))))
 	mux.Handle("POST /v1/keys/{id}/revoke", middleware.Auth(middleware.RequireScope("keys:manage", http.HandlerFunc(api.RevokeKeyHandler))))
 	mux.HandleFunc("GET /v1/approvals/{id}/events", api.ToolEventsHandler)
