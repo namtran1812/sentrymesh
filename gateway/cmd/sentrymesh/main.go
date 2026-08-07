@@ -43,6 +43,7 @@ func main() {
 	mux.Handle("GET /v1/audit/auth-events", middleware.Auth(middleware.RequireScope("audit:read", http.HandlerFunc(api.AuthEventsHandler))))
 	mux.Handle("POST /v1/rag/inspect", middleware.Auth(middleware.RequireScope("rag:inspect", http.HandlerFunc(api.RAGInspectHandler))))
 	mux.Handle("POST /v1/rag/context", middleware.Auth(middleware.RequireScope("rag:context", http.HandlerFunc(api.RAGContextHandler))))
+	mux.Handle("POST /v1/rag/chat", middleware.Auth(middleware.RequireScope("rag:chat", http.HandlerFunc(api.RAGChatHandler))))
 	mux.Handle("GET /v1/rag/requests/{request_id}/provenance", middleware.Auth(middleware.RequireScope("audit:read", http.HandlerFunc(api.RAGEventsHandler))))
 	mux.Handle("POST /v1/keys", middleware.Auth(middleware.RequireScope("keys:manage", http.HandlerFunc(api.CreateKeyHandler))))
 	mux.Handle("POST /v1/keys/{id}/revoke", middleware.Auth(middleware.RequireScope("keys:manage", http.HandlerFunc(api.RevokeKeyHandler))))
