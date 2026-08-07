@@ -30,9 +30,9 @@ type RAGCase struct {
 	Role string `json:"role"`
 	Team string `json:"team"`
 
-	Document rag.Document `json:"document"`
+	Documents []rag.Document `json:"documents"`
 
-	ExpectedIncluded bool `json:"expected_included"`
+	ExpectedIncluded int `json:"expected_included"`
 }
 
 type Metrics struct {
@@ -48,13 +48,38 @@ type Metrics struct {
 	TotalLatency time.Duration
 }
 
+type EvalMetricReport struct {
+	Total         int     `json:"total"`
+	Passed        int     `json:"passed"`
+	Failed        int     `json:"failed"`
+	Accuracy      float64 `json:"accuracy"`
+	Precision     float64 `json:"precision,omitempty"`
+	Recall        float64 `json:"recall,omitempty"`
+	FalsePositive int     `json:"false_positives,omitempty"`
+	FalseNegative int     `json:"false_negatives,omitempty"`
+	AverageNS     int64   `json:"average_latency_ns"`
+}
+
+type EvalReport struct {
+	Timestamp       time.Time        `json:"timestamp"`
+	PromptInjection EvalMetricReport `json:"prompt_injection"`
+	PII             EvalMetricReport `json:"pii"`
+	RAG             EvalMetricReport `json:"rag"`
+}
+
 func evalPath(name string) string {
 	root := os.Getenv("SENTRYMESH_ROOT")
+
 	if root == "" {
 		root = ".."
 	}
 
-	return filepath.Join(root, "evals", "cases", name)
+	return filepath.Join(
+		root,
+		"evals",
+		"cases",
+		name,
+	)
 }
 
 func loadJSON[T any](path string) ([]T, error) {
@@ -73,7 +98,9 @@ func loadJSON[T any](path string) ([]T, error) {
 }
 
 func runInjection() Metrics {
-	cases, err := loadJSON[InjectionCase](evalPath("injection.json"))
+	cases, err := loadJSON[InjectionCase](
+		evalPath("injection.json"),
+	)
 	if err != nil {
 		panic(err)
 	}
@@ -118,10 +145,13 @@ func runInjection() Metrics {
 		switch {
 		case expectedMalicious && actualMalicious:
 			m.TruePositive++
+
 		case !expectedMalicious && !actualMalicious:
 			m.TrueNegative++
+
 		case !expectedMalicious && actualMalicious:
 			m.FalsePositive++
+
 		case expectedMalicious && !actualMalicious:
 			m.FalseNegative++
 		}
@@ -131,11 +161,17 @@ func runInjection() Metrics {
 
 		if actual == c.Expected {
 			m.Passed++
-			fmt.Printf("PASS %-30s %s\n", c.Name, actual)
+
+			fmt.Printf(
+				"PASS %-32s %s\n",
+				c.Name,
+				actual,
+			)
 		} else {
 			m.Failed++
+
 			fmt.Printf(
-				"FAIL %-30s expected=%s actual=%s\n",
+				"FAIL %-32s expected=%s actual=%s\n",
 				c.Name,
 				c.Expected,
 				actual,
@@ -147,7 +183,9 @@ func runInjection() Metrics {
 }
 
 func runPII() Metrics {
-	cases, err := loadJSON[PIICase](evalPath("pii.json"))
+	cases, err := loadJSON[PIICase](
+		evalPath("pii.json"),
+	)
 	if err != nil {
 		panic(err)
 	}
@@ -172,7 +210,7 @@ func runPII() Metrics {
 			m.Passed++
 
 			fmt.Printf(
-				"PASS %-30s findings=%d\n",
+				"PASS %-32s findings=%d\n",
 				c.Name,
 				len(findings),
 			)
@@ -180,7 +218,7 @@ func runPII() Metrics {
 			m.Failed++
 
 			fmt.Printf(
-				"FAIL %-30s expected=%d actual=%d\n",
+				"FAIL %-32s expected=%d actual=%d\n",
 				c.Name,
 				c.ExpectedRedactions,
 				len(findings),
@@ -192,7 +230,9 @@ func runPII() Metrics {
 }
 
 func runRAG() Metrics {
-	cases, err := loadJSON[RAGCase](evalPath("rag.json"))
+	cases, err := loadJSON[RAGCase](
+		evalPath("rag.json"),
+	)
 	if err != nil {
 		panic(err)
 	}
@@ -213,32 +253,32 @@ func runRAG() Metrics {
 				Role:   identity.Role(c.Role),
 				Team:   c.Team,
 			},
-			[]rag.Document{c.Document},
+			c.Documents,
 		)
 
 		elapsed := time.Since(start)
 
-		included := len(result.Context) == 1
+		actualIncluded := len(result.Context)
 
 		m.Total++
 		m.TotalLatency += elapsed
 
-		if included == c.ExpectedIncluded {
+		if actualIncluded == c.ExpectedIncluded {
 			m.Passed++
 
 			fmt.Printf(
-				"PASS %-30s included=%t\n",
+				"PASS %-32s included=%d\n",
 				c.Name,
-				included,
+				actualIncluded,
 			)
 		} else {
 			m.Failed++
 
 			fmt.Printf(
-				"FAIL %-30s expected=%t actual=%t\n",
+				"FAIL %-32s expected=%d actual=%d\n",
 				c.Name,
 				c.ExpectedIncluded,
-				included,
+				actualIncluded,
 			)
 		}
 	}
@@ -257,15 +297,18 @@ func printMetrics(
 	accuracy := 0.0
 
 	if m.Total > 0 {
-		accuracy = float64(m.Passed) /
-			float64(m.Total) * 100
+		accuracy =
+			float64(m.Passed) /
+				float64(m.Total) *
+				100
 	}
 
 	avgLatency := time.Duration(0)
 
 	if m.Total > 0 {
-		avgLatency = m.TotalLatency /
-			time.Duration(m.Total)
+		avgLatency =
+			m.TotalLatency /
+				time.Duration(m.Total)
 	}
 
 	fmt.Printf("Total:            %d\n", m.Total)
@@ -279,10 +322,25 @@ func printMetrics(
 		m.FalsePositive+
 		m.FalseNegative > 0 {
 
-		fmt.Printf("True positives:   %d\n", m.TruePositive)
-		fmt.Printf("True negatives:   %d\n", m.TrueNegative)
-		fmt.Printf("False positives:  %d\n", m.FalsePositive)
-		fmt.Printf("False negatives:  %d\n", m.FalseNegative)
+		fmt.Printf(
+			"True positives:   %d\n",
+			m.TruePositive,
+		)
+
+		fmt.Printf(
+			"True negatives:   %d\n",
+			m.TrueNegative,
+		)
+
+		fmt.Printf(
+			"False positives:  %d\n",
+			m.FalsePositive,
+		)
+
+		fmt.Printf(
+			"False negatives:  %d\n",
+			m.FalseNegative,
+		)
 
 		precision := 0.0
 		recall := 0.0
@@ -305,28 +363,16 @@ func printMetrics(
 					)
 		}
 
-		fmt.Printf("Precision:        %.3f\n", precision)
-		fmt.Printf("Recall:           %.3f\n", recall)
+		fmt.Printf(
+			"Precision:        %.3f\n",
+			precision,
+		)
+
+		fmt.Printf(
+			"Recall:           %.3f\n",
+			recall,
+		)
 	}
-}
-
-type EvalMetricReport struct {
-	Total         int     `json:"total"`
-	Passed        int     `json:"passed"`
-	Failed        int     `json:"failed"`
-	Accuracy      float64 `json:"accuracy"`
-	Precision     float64 `json:"precision,omitempty"`
-	Recall        float64 `json:"recall,omitempty"`
-	FalsePositive int     `json:"false_positives,omitempty"`
-	FalseNegative int     `json:"false_negatives,omitempty"`
-	AverageNS     int64   `json:"average_latency_ns"`
-}
-
-type EvalReport struct {
-	Timestamp       time.Time        `json:"timestamp"`
-	PromptInjection EvalMetricReport `json:"prompt_injection"`
-	PII             EvalMetricReport `json:"pii"`
-	RAG             EvalMetricReport `json:"rag"`
 }
 
 func metricReport(m Metrics) EvalMetricReport {
@@ -336,16 +382,32 @@ func metricReport(m Metrics) EvalMetricReport {
 	average := int64(0)
 
 	if m.Total > 0 {
-		accuracy = float64(m.Passed) / float64(m.Total)
-		average = int64(m.TotalLatency / time.Duration(m.Total))
+		accuracy =
+			float64(m.Passed) /
+				float64(m.Total)
+
+		average = int64(
+			m.TotalLatency /
+				time.Duration(m.Total),
+		)
 	}
 
 	if m.TruePositive+m.FalsePositive > 0 {
-		precision = float64(m.TruePositive) / float64(m.TruePositive+m.FalsePositive)
+		precision =
+			float64(m.TruePositive) /
+				float64(
+					m.TruePositive+
+						m.FalsePositive,
+				)
 	}
 
 	if m.TruePositive+m.FalseNegative > 0 {
-		recall = float64(m.TruePositive) / float64(m.TruePositive+m.FalseNegative)
+		recall =
+			float64(m.TruePositive) /
+				float64(
+					m.TruePositive+
+						m.FalseNegative,
+				)
 	}
 
 	return EvalMetricReport{
@@ -359,6 +421,65 @@ func metricReport(m Metrics) EvalMetricReport {
 		FalseNegative: m.FalseNegative,
 		AverageNS:     average,
 	}
+}
+
+func writeReport(
+	injection Metrics,
+	pii Metrics,
+	ragMetrics Metrics,
+) {
+	report := EvalReport{
+		Timestamp:       time.Now().UTC(),
+		PromptInjection: metricReport(injection),
+		PII:             metricReport(pii),
+		RAG:             metricReport(ragMetrics),
+	}
+
+	reportData, err := json.MarshalIndent(
+		report,
+		"",
+		"  ",
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	root := os.Getenv("SENTRYMESH_ROOT")
+
+	if root == "" {
+		root = ".."
+	}
+
+	resultDir := filepath.Join(
+		root,
+		"evals",
+		"results",
+	)
+
+	if err := os.MkdirAll(
+		resultDir,
+		0755,
+	); err != nil {
+		panic(err)
+	}
+
+	resultPath := filepath.Join(
+		resultDir,
+		"latest.json",
+	)
+
+	if err := os.WriteFile(
+		resultPath,
+		reportData,
+		0644,
+	); err != nil {
+		panic(err)
+	}
+
+	fmt.Printf(
+		"\nReport: %s\n",
+		resultPath,
+	)
 }
 
 func main() {
@@ -381,30 +502,11 @@ func main() {
 		ragMetrics,
 	)
 
-	report := EvalReport{
-		Timestamp:       time.Now().UTC(),
-		PromptInjection: metricReport(injection),
-		PII:             metricReport(pii),
-		RAG:             metricReport(ragMetrics),
-	}
-
-	reportData, err := json.MarshalIndent(report, "", "  ")
-	if err != nil {
-		panic(err)
-	}
-
-	root := os.Getenv("SENTRYMESH_ROOT")
-	if root == "" {
-		root = ".."
-	}
-
-	resultPath := filepath.Join(root, "evals", "results", "latest.json")
-
-	if err := os.WriteFile(resultPath, reportData, 0644); err != nil {
-		panic(err)
-	}
-
-	fmt.Printf("\nReport: %s\n", resultPath)
+	writeReport(
+		injection,
+		pii,
+		ragMetrics,
+	)
 
 	if injection.Failed+
 		pii.Failed+

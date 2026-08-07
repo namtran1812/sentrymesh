@@ -1,8 +1,10 @@
 package scanner
 
 import (
+	"encoding/base64"
 	"regexp"
 	"strings"
+	"unicode"
 )
 
 type InjectionFinding struct {
@@ -51,12 +53,95 @@ var injectionPatterns = []struct {
 			`(?i)\b(export|dump|retrieve|send|list)\b.{0,60}\b(all|every)\b.{0,30}\b(customers?|users?|records?|credentials?|secrets?)\b`,
 		),
 	},
+
+	// Spanish
+	{
+		name:       "MULTILINGUAL_INSTRUCTION_OVERRIDE",
+		severity:   "HIGH",
+		confidence: 90,
+		pattern: regexp.MustCompile(
+			`(?i)\b(ignora|olvida)\b.{0,50}\b(instrucciones|reglas)\b.{0,30}\b(anteriores|previas)\b`,
+		),
+	},
+	{
+		name:       "MULTILINGUAL_PROMPT_EXTRACTION",
+		severity:   "HIGH",
+		confidence: 90,
+		pattern: regexp.MustCompile(
+			`(?i)\b(revela|muestra|imprime)\b.{0,50}\b(prompt del sistema|instrucciones ocultas)\b`,
+		),
+	},
+
+	// French
+	{
+		name:       "MULTILINGUAL_INSTRUCTION_OVERRIDE",
+		severity:   "HIGH",
+		confidence: 90,
+		pattern: regexp.MustCompile(
+			`(?i)\b(ignore|oublie)\b.{0,50}\b(instructions|règles|regles)\b.{0,30}\b(précédentes|precedentes|antérieures|anterieures)\b`,
+		),
+	},
+	{
+		name:       "MULTILINGUAL_PROMPT_EXTRACTION",
+		severity:   "HIGH",
+		confidence: 90,
+		pattern: regexp.MustCompile(
+			`(?i)\b(révèle|revele|montre|affiche)\b.{0,50}\b(prompt système|prompt systeme|instructions cachées|instructions cachees)\b`,
+		),
+	},
+}
+
+var base64CandidatePattern = regexp.MustCompile(
+	`\b[A-Za-z0-9+/]{24,}={0,2}\b`,
+)
+
+func normalizeInjectionInput(input string) string {
+	var b strings.Builder
+
+	for _, r := range input {
+		// Remove zero-width / formatting characters.
+		if unicode.Is(unicode.Cf, r) {
+			continue
+		}
+
+		// Normalize a few common Cyrillic homoglyphs used to bypass ASCII rules.
+		switch r {
+		case 'а':
+			r = 'a'
+		case 'е':
+			r = 'e'
+		case 'о':
+			r = 'o'
+		case 'р':
+			r = 'p'
+		case 'с':
+			r = 'c'
+		case 'х':
+			r = 'x'
+		case 'А':
+			r = 'A'
+		case 'Е':
+			r = 'E'
+		case 'О':
+			r = 'O'
+		case 'Р':
+			r = 'P'
+		case 'С':
+			r = 'C'
+		case 'Х':
+			r = 'X'
+		}
+
+		b.WriteRune(r)
+	}
+
+	return strings.Join(strings.Fields(b.String()), " ")
 }
 
 func scanPromptInjectionRaw(input string) []InjectionFinding {
-	findings := make([]InjectionFinding, 0)
+	normalized := normalizeInjectionInput(input)
 
-	normalized := strings.Join(strings.Fields(input), " ")
+	findings := make([]InjectionFinding, 0)
 
 	for _, candidate := range injectionPatterns {
 		match := candidate.pattern.FindString(normalized)
@@ -64,16 +149,48 @@ func scanPromptInjectionRaw(input string) []InjectionFinding {
 			continue
 		}
 
-		findings = append(findings, InjectionFinding{
-			Type:       candidate.name,
-			Severity:   candidate.severity,
-			Confidence: candidate.confidence,
-			Action:     "BLOCK",
-			Matched:    match,
-		})
+		findings = append(
+			findings,
+			InjectionFinding{
+				Type:       candidate.name,
+				Severity:   candidate.severity,
+				Confidence: candidate.confidence,
+				Action:     "BLOCK",
+				Matched:    match,
+			},
+		)
 	}
 
 	return findings
+}
+
+func scanEncodedInjection(input string) []InjectionFinding {
+	candidates := base64CandidatePattern.FindAllString(input, -1)
+
+	for _, candidate := range candidates {
+		decoded, err := base64.StdEncoding.DecodeString(candidate)
+		if err != nil {
+			continue
+		}
+
+		decodedText := string(decoded)
+
+		if len(scanPromptInjectionRaw(decodedText)) == 0 {
+			continue
+		}
+
+		return []InjectionFinding{
+			{
+				Type:       "ENCODED_PROMPT_INJECTION",
+				Severity:   "HIGH",
+				Confidence: 90,
+				Action:     "BLOCK",
+				Matched:    candidate,
+			},
+		}
+	}
+
+	return nil
 }
 
 func ScanPromptInjection(input string) []InjectionFinding {
@@ -81,5 +198,9 @@ func ScanPromptInjection(input string) []InjectionFinding {
 		return nil
 	}
 
-	return scanPromptInjectionRaw(input)
+	findings := scanPromptInjectionRaw(input)
+
+	encoded := scanEncodedInjection(input)
+
+	return append(findings, encoded...)
 }
