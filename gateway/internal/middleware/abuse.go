@@ -91,6 +91,12 @@ func AbuseGuard(
 			principal.KeyID,
 		)
 
+		tracker.RegisterKey(
+			r.Context(),
+			key,
+			principal.KeyID,
+		)
+
 		blocked, retryAfter, score :=
 			tracker.Check(key)
 

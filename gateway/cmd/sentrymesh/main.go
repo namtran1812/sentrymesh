@@ -34,10 +34,11 @@ func main() {
 
 	apiLimiter := ratelimit.New(20, 5)
 
-	abuseTracker := abuse.New(
+	abuseTracker := abuse.NewPersistent(
 		5,
 		30*time.Second,
 		30*time.Second,
+		runtime.AbuseStore,
 	)
 
 	mux := http.NewServeMux()
@@ -54,6 +55,7 @@ func main() {
 	mux.Handle("GET /v1/keys", middleware.Auth(middleware.RequireScope("keys:manage", http.HandlerFunc(api.ListKeysHandler))))
 	mux.Handle("GET /v1/audit/auth-events", middleware.Auth(middleware.RequireScope("audit:read", http.HandlerFunc(api.AuthEventsHandler))))
 	mux.Handle("GET /v1/audit/abuse-events", middleware.Auth(middleware.RequireScope("audit:read", http.HandlerFunc(api.AbuseEventsHandler))))
+	mux.Handle("GET /v1/security/posture", middleware.Auth(middleware.RequireScope("audit:read", http.HandlerFunc(api.SecurityPostureHandler))))
 	mux.Handle("GET /v1/evals/latest", middleware.Auth(middleware.RequireScope("evals:read", http.HandlerFunc(api.EvalResultsHandler))))
 	mux.Handle("POST /v1/rag/inspect", middleware.Auth(middleware.RequireScope("rag:inspect", http.HandlerFunc(api.RAGInspectHandler))))
 	mux.Handle("POST /v1/rag/context", middleware.Auth(middleware.RequireScope("rag:context", http.HandlerFunc(api.RAGContextHandler))))

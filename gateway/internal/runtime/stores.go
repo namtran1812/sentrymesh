@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/namtran1812/sentrymesh/gateway/internal/abuse"
 	"github.com/namtran1812/sentrymesh/gateway/internal/audit"
 )
 
@@ -46,6 +47,24 @@ var AuditStore = func() *audit.Store {
 	if err := store.EnsureAbuseEvents(); err != nil {
 		log.Fatalf(
 			"initialize abuse audit events: %v",
+			err,
+		)
+	}
+
+	return store
+}()
+
+var AbuseStore = func() *abuse.Store {
+	path := os.Getenv("SENTRYMESH_ABUSE_DB")
+
+	if path == "" {
+		path = "sentrymesh-abuse.db"
+	}
+
+	store, err := abuse.NewStore(path)
+	if err != nil {
+		log.Fatalf(
+			"initialize abuse store: %v",
 			err,
 		)
 	}

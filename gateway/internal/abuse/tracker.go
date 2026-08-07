@@ -1,6 +1,7 @@
 package abuse
 
 import (
+	"context"
 	"sync"
 	"time"
 )
@@ -18,7 +19,10 @@ type Tracker struct {
 	cooldown   time.Duration
 	decayEvery time.Duration
 	states     map[string]*state
-	now        func() time.Time
+	keyIDs     map[string]int64
+
+	now   func() time.Time
+	store *Store
 }
 
 func New(
@@ -31,8 +35,61 @@ func New(
 		cooldown:   cooldown,
 		decayEvery: decayEvery,
 		states:     make(map[string]*state),
+		keyIDs:     make(map[string]int64),
 		now:        time.Now,
 	}
+}
+
+func NewPersistent(
+	threshold int,
+	cooldown time.Duration,
+	decayEvery time.Duration,
+	store *Store,
+) *Tracker {
+	tracker := New(
+		threshold,
+		cooldown,
+		decayEvery,
+	)
+
+	tracker.store = store
+
+	return tracker
+}
+
+func (t *Tracker) RegisterKey(
+	ctx context.Context,
+	key string,
+	keyID int64,
+) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	t.keyIDs[key] = keyID
+
+	if t.store == nil {
+		return
+	}
+
+	stored, err := t.store.Load(
+		ctx,
+		keyID,
+	)
+	if err != nil {
+		return
+	}
+
+	s := &state{
+		score:       stored.Score,
+		lastUpdated: stored.LastUpdated,
+	}
+
+	if stored.CooldownUntil != nil {
+		s.cooldownUntil =
+			*stored.CooldownUntil
+	}
+
+	t.states[key] = s
 }
 
 func (t *Tracker) applyDecay(
@@ -49,7 +106,10 @@ func (t *Tracker) applyDecay(
 		return
 	}
 
-	steps := int(elapsed / t.decayEvery)
+	steps := int(
+		elapsed /
+			t.decayEvery,
+	)
 
 	s.score -= steps
 
@@ -58,7 +118,39 @@ func (t *Tracker) applyDecay(
 	}
 
 	s.lastUpdated = s.lastUpdated.Add(
-		time.Duration(steps) * t.decayEvery,
+		time.Duration(steps) *
+			t.decayEvery,
+	)
+}
+
+func (t *Tracker) persist(
+	key string,
+	s *state,
+) {
+	if t.store == nil {
+		return
+	}
+
+	keyID, ok := t.keyIDs[key]
+	if !ok {
+		return
+	}
+
+	var cooldown *time.Time
+
+	if !s.cooldownUntil.IsZero() {
+		value := s.cooldownUntil
+		cooldown = &value
+	}
+
+	_ = t.store.Save(
+		context.Background(),
+		StoredState{
+			KeyID:         keyID,
+			Score:         s.score,
+			LastUpdated:   s.lastUpdated,
+			CooldownUntil: cooldown,
+		},
 	)
 }
 
@@ -90,14 +182,25 @@ func (t *Tracker) Add(
 	s.lastUpdated = now
 
 	if s.score >= t.threshold &&
-		!now.Before(s.cooldownUntil) {
+		!now.Before(
+			s.cooldownUntil,
+		) {
 
-		s.cooldownUntil = now.Add(t.cooldown)
+		s.cooldownUntil =
+			now.Add(t.cooldown)
 
-		return s.score, s.cooldownUntil, true
+		t.persist(key, s)
+
+		return s.score,
+			s.cooldownUntil,
+			true
 	}
 
-	return s.score, s.cooldownUntil, false
+	t.persist(key, s)
+
+	return s.score,
+		s.cooldownUntil,
+		false
 }
 
 func (t *Tracker) Check(
@@ -119,13 +222,22 @@ func (t *Tracker) Check(
 
 	t.applyDecay(s, now)
 
-	if now.Before(s.cooldownUntil) {
-		return true, s.cooldownUntil.Sub(now), s.score
+	if now.Before(
+		s.cooldownUntil,
+	) {
+		t.persist(key, s)
+
+		return true,
+			s.cooldownUntil.Sub(now),
+			s.score
 	}
 
 	if !s.cooldownUntil.IsZero() {
-		s.cooldownUntil = time.Time{}
+		s.cooldownUntil =
+			time.Time{}
 	}
+
+	t.persist(key, s)
 
 	return false, 0, s.score
 }
@@ -144,6 +256,7 @@ func (t *Tracker) Score(
 	now := t.now()
 
 	t.applyDecay(s, now)
+	t.persist(key, s)
 
 	return s.score
 }
