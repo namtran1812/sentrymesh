@@ -1,0 +1,39 @@
+gateway/internal/auth/store.go:29:type Store struct {
+gateway/internal/auth/store.go:33:func NewStore(path string) (*Store, error) {
+gateway/internal/auth/store.go:54:		CREATE TABLE IF NOT EXISTS api_keys (
+gateway/internal/auth/store.go:97:		INSERT INTO api_keys (
+gateway/internal/auth/store.go:131:		SELECT
+gateway/internal/auth/store.go:257:		SELECT
+gateway/internal/auth/store.go:341:		SELECT
+gateway/internal/auth/store.go:381:		SELECT
+gateway/internal/audit/query.go:33:		SELECT
+gateway/internal/audit/auth_events.go:31:		CREATE TABLE IF NOT EXISTS auth_events (
+gateway/internal/audit/auth_events.go:68:		INSERT INTO auth_events (
+gateway/internal/audit/auth_events.go:103:		SELECT
+gateway/internal/audit/store.go:28:type Store struct {
+gateway/internal/audit/store.go:32:func NewStore(path string) (*Store, error) {
+gateway/internal/audit/store.go:50:		CREATE TABLE IF NOT EXISTS audit_events (
+gateway/internal/audit/store.go:93:		INSERT INTO audit_events (
+gateway/internal/audit/rag_events.go:33:		CREATE TABLE IF NOT EXISTS rag_events (
+gateway/internal/audit/rag_events.go:65:		INSERT INTO rag_events (
+gateway/internal/audit/rag_events.go:97:		SELECT
+gateway/internal/audit/stats.go:28:		SELECT
+gateway/internal/audit/tool_events.go:22:		CREATE TABLE IF NOT EXISTS tool_events (
+gateway/internal/audit/tool_events.go:55:		INSERT INTO tool_events (
+gateway/internal/audit/tool_events.go:100:		SELECT
+gateway/internal/audit/abuse_events.go:37:		CREATE TABLE IF NOT EXISTS abuse_events (
+gateway/internal/audit/abuse_events.go:72:		INSERT INTO abuse_events (
+gateway/internal/audit/abuse_events.go:114:		SELECT
+gateway/internal/approval/store.go:32:type Store struct {
+gateway/internal/approval/store.go:36:func NewStore(path string) (*Store, error) {
+gateway/internal/approval/store.go:54:		CREATE TABLE IF NOT EXISTS approvals (
+gateway/internal/approval/store.go:86:		INSERT INTO approvals (
+gateway/internal/approval/store.go:127:		SELECT
+gateway/internal/approval/store.go:187:		SELECT
+gateway/internal/approval/store.go:334:		SELECT
+gateway/internal/abuse/store.go:19:type Store struct {
+gateway/internal/abuse/store.go:23:func NewStore(path string) (*Store, error) {
+gateway/internal/abuse/store.go:44:		CREATE TABLE IF NOT EXISTS abuse_state (
+gateway/internal/abuse/store.go:69:		INSERT INTO abuse_state (
+gateway/internal/abuse/store.go:103:		SELECT
+gateway/internal/abuse/store.go:153:		SELECT
