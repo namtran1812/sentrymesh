@@ -1,6 +1,6 @@
 import type { AuditEvent, AuditStats } from './types'
 
-const API_BASE = 'http://localhost:8080'
+const API_BASE = import.meta.env.VITE_API_BASE ?? ""
 
 export async function fetchStats(): Promise<AuditStats> {
   const response = await fetch(`${API_BASE}/v1/audit/stats`)

@@ -1,0 +1,56 @@
+services:
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+
+    container_name: sentrymesh-gateway
+
+    ports:
+      - "8080:8080"
+
+    environment:
+      SENTRYMESH_ROOT: /app
+      SENTRYMESH_AUDIT_DB: /data/sentrymesh-audit.db
+      SENTRYMESH_APPROVAL_DB: /data/sentrymesh-approvals.db
+      SENTRYMESH_AUTH_DB: /data/sentrymesh-auth.db
+      SENTRYMESH_ABUSE_DB: /data/sentrymesh-abuse.db
+
+    volumes:
+      - sentrymesh-data:/data
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-q",
+          "-O",
+          "-",
+          "http://localhost:8080/health"
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+    restart: unless-stopped
+
+  console:
+    build:
+      context: ./console
+      dockerfile: Dockerfile
+
+    container_name: sentrymesh-console
+
+    ports:
+      - "5173:80"
+
+    depends_on:
+      gateway:
+        condition: service_healthy
+
+    restart: unless-stopped
+
+volumes:
+  sentrymesh-data:

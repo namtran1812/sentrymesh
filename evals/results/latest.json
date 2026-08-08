@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-08-07T22:36:15.119574Z",
+  "timestamp": "2026-08-08T04:19:32.523175Z",
   "prompt_injection": {
     "total": 26,
     "passed": 26,
@@ -7,20 +7,20 @@
     "accuracy": 1,
     "precision": 1,
     "recall": 1,
-    "average_latency_ns": 33403
+    "average_latency_ns": 35490
   },
   "pii": {
     "total": 4,
     "passed": 4,
     "failed": 0,
     "accuracy": 1,
-    "average_latency_ns": 5656
+    "average_latency_ns": 4207
   },
   "rag": {
     "total": 10,
     "passed": 10,
     "failed": 0,
     "accuracy": 1,
-    "average_latency_ns": 49570
+    "average_latency_ns": 37654
   }
 }
