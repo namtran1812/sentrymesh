@@ -1,3 +1,10 @@
+export type Decision =
+  | 'ALLOW'
+  | 'BLOCK'
+  | 'ALLOW_WITH_REDACTION'
+  | 'REQUIRE_APPROVAL'
+  | string
+
 export interface AuditStats {
   total_requests: number
   allowed_requests: number
@@ -10,36 +17,17 @@ export interface AuditStats {
   medium_severity_events: number
 }
 
-export interface Finding {
-  type?: string
-  severity?: string
-  action?: string
-  confidence?: number
-  redacted_as?: string
-  matched?: string
-}
-
-export interface OutputScan {
-  safe: boolean
-  redacted: string
-  pii_findings?: Finding[]
-  secret_findings?: Finding[]
-}
-
 export interface AuditEvent {
   id: number
-  request_id: string
   timestamp: string
-  provider: string
-  model: string
-  decision: string
-  risk_score: number
-  severity: string
-  latency_ms: number
-  secret_findings: Finding[] | null
-  pii_findings: Finding[]
-  injection_findings: Finding[]
-  output_findings: OutputScan | null
+  request_id?: string
+  decision?: string
+  risk_score?: number
+  severity?: string
+  provider?: string
+  model?: string
+  latency_ms?: number
+  details?: unknown
 }
 
 export interface Approval {
@@ -62,6 +50,127 @@ export interface ToolEvent {
   risk: number
   status: string
   details: unknown
+}
+
+export interface InjectionFinding {
+  type: string
+  severity: string
+  confidence: number
+  action: string
+  matched?: string
+}
+
+export interface PIIFinding {
+  type: string
+  severity: string
+  action: string
+  redacted_as?: string
+}
+
+export interface OutputScan {
+  safe: boolean
+  redacted?: string
+}
+
+export interface ChatResult {
+  request_id?: string
+  decision: Decision
+  risk_score: number
+  severity: string
+  message?: string
+  sanitized_prompt?: string
+  model_response?: string
+  injection_findings?: InjectionFinding[]
+  pii_findings?: PIIFinding[]
+  output_scan?: OutputScan
+}
+
+export interface ToolEvaluation {
+  tool: string
+  decision: Decision
+  reason: string
+  risk: number
+  approval_id?: number
+}
+
+export interface RAGDocument {
+  id: string
+  source: string
+  owner_team: string
+  classification: string
+  trust_level: string
+  content: string
+}
+
+export interface RAGInspection {
+  document_id: string
+  decision: Decision
+  sanitized_content?: string
+  injection_findings?: InjectionFinding[]
+  reason: string
+}
+
+export interface RAGTraceEntry {
+  document_id: string
+  source: string
+  trust_level: string
+  classification: string
+  owner_team: string
+  decision: Decision
+  included: boolean
+  reason: string
+}
+
+export interface RAGContextResult {
+  context: RAGDocument[]
+  trace: {
+    request_id: string
+    timestamp: string
+    entries: RAGTraceEntry[]
+  }
+}
+
+export interface APIKeyRecord {
+  id: number
+  name: string
+  user_id: string
+  role: string
+  team: string
+  scopes: string
+  expires_at?: string
+  revoked_at?: string
+  created_at: string
+}
+
+export interface CreatedAPIKey {
+  api_key: string
+  name: string
+  warning: string
+}
+
+export interface SecurityPostureKey {
+  key_id: number
+  name: string
+  user_id: string
+  role: string
+  team: string
+  scopes: string
+  abuse_score: number
+  status: string
+  cooldown_until?: string
+  revoked_at?: string
+}
+
+export interface SecurityPosture {
+  timestamp: string
+  summary: {
+    total: number
+    healthy: number
+    elevated: number
+    cooldown: number
+    revoked: number
+  }
+  keys: SecurityPostureKey[]
 }
 
 export interface EvalMetric {

@@ -1,20 +1,25 @@
 import type {
+  APIKeyRecord,
   Approval,
   AuditEvent,
   AuditStats,
+  ChatResult,
+  CreatedAPIKey,
   EvalResults,
+  RAGContextResult,
+  RAGDocument,
+  RAGInspection,
+  SecurityPosture,
+  ToolEvaluation,
   ToolEvent,
 } from './types'
 
 const API_BASE =
   import.meta.env.VITE_API_BASE ?? ''
 
-const API_KEY_STORAGE =
-  'sentrymesh_api_key'
+const API_KEY_STORAGE = 'sentrymesh_api_key'
 
-export function setAPIKey(
-  key: string,
-) {
+export function setAPIKey(key: string) {
   sessionStorage.setItem(
     API_KEY_STORAGE,
     key.trim(),
@@ -22,25 +27,20 @@ export function setAPIKey(
 }
 
 export function clearAPIKey() {
-  sessionStorage.removeItem(
-    API_KEY_STORAGE,
-  )
+  sessionStorage.removeItem(API_KEY_STORAGE)
 }
 
 export function hasAPIKey(): boolean {
   return Boolean(
-    sessionStorage.getItem(
-      API_KEY_STORAGE,
-    ),
+    sessionStorage.getItem(API_KEY_STORAGE),
   )
 }
 
 function authHeaders(
   extra: Record<string, string> = {},
 ): Record<string, string> {
-  const key = sessionStorage.getItem(
-    API_KEY_STORAGE,
-  )
+  const key =
+    sessionStorage.getItem(API_KEY_STORAGE)
 
   return {
     ...extra,
@@ -52,150 +52,219 @@ function authHeaders(
   }
 }
 
-async function requireOK(
-  response: Response,
-  description: string,
-) {
+async function request<T>(
+  path: string,
+  options: RequestInit = {},
+): Promise<T> {
+  const response = await fetch(
+    `${API_BASE}${path}`,
+    {
+      ...options,
+      headers: authHeaders({
+        ...(options.body
+          ? {
+              'Content-Type':
+                'application/json',
+            }
+          : {}),
+        ...(options.headers as
+          Record<string, string> | undefined),
+      }),
+    },
+  )
+
   if (!response.ok) {
-    throw new Error(
-      `${description}: ${response.status}`,
-    )
+    let message =
+      `request failed: ${response.status}`
+
+    try {
+      const body =
+        await response.json()
+
+      if (body?.error) {
+        message = body.error
+      }
+    } catch {
+      // keep fallback
+    }
+
+    throw new Error(message)
   }
-}
 
-export async function fetchStats():
-Promise<AuditStats> {
-  const response = await fetch(
-    `${API_BASE}/v1/audit/stats`,
-    {
-      headers: authHeaders(),
-    },
-  )
-
-  await requireOK(
-    response,
-    'stats request failed',
-  )
+  if (response.status === 204) {
+    return undefined as T
+  }
 
   return response.json()
 }
 
-export async function fetchEvents():
-Promise<AuditEvent[]> {
-  const response = await fetch(
-    `${API_BASE}/v1/audit/events?limit=50`,
-    {
-      headers: authHeaders(),
-    },
+export function fetchStats() {
+  return request<AuditStats>(
+    '/v1/audit/stats',
   )
-
-  await requireOK(
-    response,
-    'events request failed',
-  )
-
-  return response.json()
 }
 
-export async function fetchApprovals():
-Promise<Approval[]> {
-  const response = await fetch(
-    `${API_BASE}/v1/approvals`,
-    {
-      headers: authHeaders(),
-    },
+export function fetchEvents() {
+  return request<AuditEvent[]>(
+    '/v1/audit/events?limit=100',
   )
-
-  await requireOK(
-    response,
-    'approvals request failed',
-  )
-
-  return response.json()
 }
 
-export async function approveRequest(
+export function fetchApprovals() {
+  return request<Approval[]>(
+    '/v1/approvals',
+  )
+}
+
+export function approveRequest(
   id: number,
-): Promise<void> {
-  const response = await fetch(
-    `${API_BASE}/v1/approvals/${id}/approve`,
+) {
+  return request<void>(
+    `/v1/approvals/${id}/approve`,
     {
       method: 'POST',
-      headers: authHeaders(),
     },
-  )
-
-  await requireOK(
-    response,
-    'approve failed',
   )
 }
 
-export async function rejectRequest(
+export function rejectRequest(
   id: number,
-): Promise<void> {
-  const response = await fetch(
-    `${API_BASE}/v1/approvals/${id}/reject`,
+) {
+  return request<void>(
+    `/v1/approvals/${id}/reject`,
     {
       method: 'POST',
-      headers: authHeaders(),
     },
-  )
-
-  await requireOK(
-    response,
-    'reject failed',
   )
 }
 
-export async function executeRequest(
+export function executeRequest(
   id: number,
-): Promise<void> {
-  const response = await fetch(
-    `${API_BASE}/v1/approvals/${id}/execute`,
+) {
+  return request<void>(
+    `/v1/approvals/${id}/execute`,
     {
       method: 'POST',
-      headers: authHeaders(),
     },
-  )
-
-  await requireOK(
-    response,
-    'execute failed',
   )
 }
 
-export async function fetchToolEvents(
+export function fetchToolEvents(
   approvalId: number,
-): Promise<ToolEvent[]> {
-  const response = await fetch(
-    `${API_BASE}/v1/approvals/${approvalId}/events`,
-    {
-      headers: authHeaders(),
-    },
+) {
+  return request<ToolEvent[]>(
+    `/v1/approvals/${approvalId}/events`,
   )
-
-  await requireOK(
-    response,
-    'tool events request failed',
-  )
-
-  return response.json()
 }
 
-export async function fetchEvalResults():
-Promise<EvalResults> {
-  const response = await fetch(
-    `${API_BASE}/v1/evals/latest`,
+export function fetchEvalResults() {
+  return request<EvalResults>(
+    '/v1/evals/latest',
+  )
+}
+
+export function fetchSecurityPosture() {
+  return request<SecurityPosture>(
+    '/v1/security/posture',
+  )
+}
+
+export function submitPrompt(
+  prompt: string,
+) {
+  return request<ChatResult>(
+    '/v1/chat/completions',
     {
-      headers: authHeaders(),
+      method: 'POST',
+      body: JSON.stringify({
+        model: 'test',
+        messages: [
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+      }),
     },
   )
+}
 
-  await requireOK(
-    response,
-    'eval results request failed',
+export function evaluateTool(
+  name: string,
+  args: Record<string, unknown>,
+) {
+  return request<ToolEvaluation>(
+    '/v1/tools/evaluate',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        name,
+        arguments: args,
+      }),
+    },
   )
+}
 
-  return response.json()
+export function inspectRAG(
+  documents: RAGDocument[],
+) {
+  return request<RAGInspection[]>(
+    '/v1/rag/inspect',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        documents,
+      }),
+    },
+  )
+}
+
+export function buildRAGContext(
+  requestId: string,
+  documents: RAGDocument[],
+) {
+  return request<RAGContextResult>(
+    '/v1/rag/context',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        request_id: requestId,
+        documents,
+      }),
+    },
+  )
+}
+
+export function fetchAPIKeys() {
+  return request<APIKeyRecord[]>(
+    '/v1/keys',
+  )
+}
+
+export function createAPIKey(input: {
+  name: string
+  user_id: string
+  role: string
+  team: string
+  scopes: string[]
+  expires_in_hours: number
+}) {
+  return request<CreatedAPIKey>(
+    '/v1/keys',
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
+  )
+}
+
+export function revokeAPIKey(
+  id: number,
+) {
+  return request<{ id: number; revoked: boolean }>(
+    `/v1/keys/${id}/revoke`,
+    {
+      method: 'POST',
+    },
+  )
 }
