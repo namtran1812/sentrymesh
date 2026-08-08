@@ -34,7 +34,7 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	seedDevelopmentKeys()
+	seedAPIKeys()
 
 	apiLimiter := ratelimit.New(20, 5)
 
