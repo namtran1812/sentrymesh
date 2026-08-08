@@ -27,3 +27,16 @@ evals/results/history/
 *.db
 *.db-shm
 *.db-wal
+
+# Runtime databases
+*.db
+*.db-shm
+*.db-wal
+
+# Local builds / backups
+gateway/sentrymesh
+*.bak
+*.tmp
+
+# Environment secrets
+.env
