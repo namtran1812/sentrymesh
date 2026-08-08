@@ -436,3 +436,74 @@ pre {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+.auth-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  border: 1px solid #27272a;
+  border-radius: 12px;
+  padding: 32px;
+  background: #0c0c0e;
+}
+
+.auth-mark {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #3f3f46;
+  border-radius: 10px;
+  font-weight: 700;
+  margin-bottom: 20px;
+}
+
+.auth-card h1 {
+  margin: 0 0 8px;
+}
+
+.auth-card p {
+  color: #a1a1aa;
+  margin-bottom: 24px;
+}
+
+.auth-card label {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.auth-card input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px;
+  border: 1px solid #3f3f46;
+  border-radius: 7px;
+  background: #09090b;
+  color: inherit;
+  margin-bottom: 12px;
+}
+
+.auth-card button {
+  width: 100%;
+  padding: 12px;
+}
+
+.auth-card small {
+  display: block;
+  color: #71717a;
+  margin-top: 16px;
+}
+
+.console-lock {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 100;
+}
