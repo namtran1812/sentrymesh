@@ -49,10 +49,10 @@ func main() {
 
 	mux.HandleFunc("GET /health", healthHandler)
 	mux.Handle("POST /v1/chat/completions", middleware.BodyLimit(1<<20, middleware.Auth(middleware.TrafficGuard(abuseTracker, apiLimiter, runtime.AuditStore, http.HandlerFunc(api.ChatHandler)))))
-	mux.HandleFunc("GET /v1/audit/events", api.AuditEventsHandler)
-	mux.HandleFunc("GET /v1/audit/stats", api.AuditStatsHandler)
+	mux.Handle("GET /v1/audit/events", middleware.Auth(middleware.RequireScope("audit:read", http.HandlerFunc(api.AuditEventsHandler))))
+	mux.Handle("GET /v1/audit/stats", middleware.Auth(middleware.RequireScope("audit:read", http.HandlerFunc(api.AuditStatsHandler))))
 	mux.Handle("POST /v1/tools/evaluate", middleware.BodyLimit(1<<20, middleware.Auth(middleware.TrafficGuard(abuseTracker, apiLimiter, runtime.AuditStore, middleware.RequireScope("tools:evaluate", http.HandlerFunc(api.ToolEvaluationHandler))))))
-	mux.HandleFunc("GET /v1/approvals", api.ListApprovalsHandler)
+	mux.Handle("GET /v1/approvals", middleware.Auth(middleware.RequireScope("audit:read", http.HandlerFunc(api.ListApprovalsHandler))))
 	mux.Handle("POST /v1/approvals/{id}/approve", middleware.Auth(middleware.RequireScope("approvals:write", http.HandlerFunc(api.ApproveHandler))))
 	mux.Handle("POST /v1/approvals/{id}/reject", middleware.Auth(middleware.RequireScope("approvals:write", http.HandlerFunc(api.RejectHandler))))
 	mux.Handle("POST /v1/approvals/{id}/execute", middleware.Auth(middleware.RequireScope("tools:execute", http.HandlerFunc(api.ExecuteApprovalHandler))))
@@ -67,7 +67,7 @@ func main() {
 	mux.Handle("GET /v1/rag/requests/{request_id}/provenance", middleware.Auth(middleware.RequireScope("audit:read", http.HandlerFunc(api.RAGEventsHandler))))
 	mux.Handle("POST /v1/keys", middleware.BodyLimit(1<<20, middleware.Auth(middleware.RequireScope("keys:manage", http.HandlerFunc(api.CreateKeyHandler)))))
 	mux.Handle("POST /v1/keys/{id}/revoke", middleware.Auth(middleware.RequireScope("keys:manage", http.HandlerFunc(api.RevokeKeyHandler))))
-	mux.HandleFunc("GET /v1/approvals/{id}/events", api.ToolEventsHandler)
+	mux.Handle("GET /v1/approvals/{id}/events", middleware.Auth(middleware.RequireScope("audit:read", http.HandlerFunc(api.ToolEventsHandler))))
 
 	server := &http.Server{
 		Addr:              ":8080",

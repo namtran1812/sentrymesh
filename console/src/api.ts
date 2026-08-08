@@ -1,105 +1,201 @@
-import type { AuditEvent, AuditStats } from './types'
+import type {
+  Approval,
+  AuditEvent,
+  AuditStats,
+  EvalResults,
+  ToolEvent,
+} from './types'
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? ""
+const API_BASE =
+  import.meta.env.VITE_API_BASE ?? ''
 
-export async function fetchStats(): Promise<AuditStats> {
-  const response = await fetch(`${API_BASE}/v1/audit/stats`)
+const API_KEY_STORAGE =
+  'sentrymesh_api_key'
 
-  if (!response.ok) {
-    throw new Error(`stats request failed: ${response.status}`)
+export function setAPIKey(
+  key: string,
+) {
+  sessionStorage.setItem(
+    API_KEY_STORAGE,
+    key.trim(),
+  )
+}
+
+export function clearAPIKey() {
+  sessionStorage.removeItem(
+    API_KEY_STORAGE,
+  )
+}
+
+export function hasAPIKey(): boolean {
+  return Boolean(
+    sessionStorage.getItem(
+      API_KEY_STORAGE,
+    ),
+  )
+}
+
+function authHeaders(
+  extra: Record<string, string> = {},
+): Record<string, string> {
+  const key = sessionStorage.getItem(
+    API_KEY_STORAGE,
+  )
+
+  return {
+    ...extra,
+    ...(key
+      ? {
+          Authorization: `Bearer ${key}`,
+        }
+      : {}),
   }
+}
+
+async function requireOK(
+  response: Response,
+  description: string,
+) {
+  if (!response.ok) {
+    throw new Error(
+      `${description}: ${response.status}`,
+    )
+  }
+}
+
+export async function fetchStats():
+Promise<AuditStats> {
+  const response = await fetch(
+    `${API_BASE}/v1/audit/stats`,
+    {
+      headers: authHeaders(),
+    },
+  )
+
+  await requireOK(
+    response,
+    'stats request failed',
+  )
 
   return response.json()
 }
 
-export async function fetchEvents(): Promise<AuditEvent[]> {
-  const response = await fetch(`${API_BASE}/v1/audit/events?limit=50`)
+export async function fetchEvents():
+Promise<AuditEvent[]> {
+  const response = await fetch(
+    `${API_BASE}/v1/audit/events?limit=50`,
+    {
+      headers: authHeaders(),
+    },
+  )
 
-  if (!response.ok) {
-    throw new Error(`events request failed: ${response.status}`)
-  }
-
-  return response.json()
-}
-
-import type { Approval } from './types'
-
-export async function fetchApprovals(): Promise<Approval[]> {
-  const response = await fetch(`${API_BASE}/v1/approvals`)
-
-  if (!response.ok) {
-    throw new Error(`approvals request failed: ${response.status}`)
-  }
+  await requireOK(
+    response,
+    'events request failed',
+  )
 
   return response.json()
 }
 
-export async function approveRequest(id: number): Promise<void> {
+export async function fetchApprovals():
+Promise<Approval[]> {
+  const response = await fetch(
+    `${API_BASE}/v1/approvals`,
+    {
+      headers: authHeaders(),
+    },
+  )
+
+  await requireOK(
+    response,
+    'approvals request failed',
+  )
+
+  return response.json()
+}
+
+export async function approveRequest(
+  id: number,
+): Promise<void> {
   const response = await fetch(
     `${API_BASE}/v1/approvals/${id}/approve`,
-    { method: 'POST' },
+    {
+      method: 'POST',
+      headers: authHeaders(),
+    },
   )
 
-  if (!response.ok) {
-    throw new Error(`approve failed: ${response.status}`)
-  }
+  await requireOK(
+    response,
+    'approve failed',
+  )
 }
 
-export async function rejectRequest(id: number): Promise<void> {
+export async function rejectRequest(
+  id: number,
+): Promise<void> {
   const response = await fetch(
     `${API_BASE}/v1/approvals/${id}/reject`,
-    { method: 'POST' },
+    {
+      method: 'POST',
+      headers: authHeaders(),
+    },
   )
 
-  if (!response.ok) {
-    throw new Error(`reject failed: ${response.status}`)
-  }
+  await requireOK(
+    response,
+    'reject failed',
+  )
 }
 
-export async function executeRequest(id: number): Promise<void> {
+export async function executeRequest(
+  id: number,
+): Promise<void> {
   const response = await fetch(
     `${API_BASE}/v1/approvals/${id}/execute`,
-    { method: 'POST' },
+    {
+      method: 'POST',
+      headers: authHeaders(),
+    },
   )
 
-  if (!response.ok) {
-    throw new Error(`execute failed: ${response.status}`)
-  }
+  await requireOK(
+    response,
+    'execute failed',
+  )
 }
 
 export async function fetchToolEvents(
   approvalId: number,
-): Promise<import('./types').ToolEvent[]> {
+): Promise<ToolEvent[]> {
   const response = await fetch(
     `${API_BASE}/v1/approvals/${approvalId}/events`,
+    {
+      headers: authHeaders(),
+    },
   )
 
-  if (!response.ok) {
-    throw new Error(
-      `tool events request failed: ${response.status}`,
-    )
-  }
+  await requireOK(
+    response,
+    'tool events request failed',
+  )
 
   return response.json()
 }
 
-export async function fetchEvalResults(): Promise<
-  import('./types').EvalResults
-> {
+export async function fetchEvalResults():
+Promise<EvalResults> {
   const response = await fetch(
     `${API_BASE}/v1/evals/latest`,
     {
-      headers: {
-        Authorization: 'Bearer sm_admin_dev',
-      },
+      headers: authHeaders(),
     },
   )
 
-  if (!response.ok) {
-    throw new Error(
-      `eval results request failed: ${response.status}`,
-    )
-  }
+  await requireOK(
+    response,
+    'eval results request failed',
+  )
 
   return response.json()
 }
