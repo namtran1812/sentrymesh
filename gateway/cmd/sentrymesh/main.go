@@ -15,6 +15,8 @@ import (
 	"github.com/namtran1812/sentrymesh/gateway/internal/metrics"
 	"github.com/namtran1812/sentrymesh/gateway/internal/middleware"
 	"github.com/namtran1812/sentrymesh/gateway/internal/ratelimit"
+	"github.com/namtran1812/sentrymesh/gateway/internal/telemetry"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 type HealthResponse struct {
@@ -84,6 +86,31 @@ func readinessHandler(
 }
 
 func main() {
+	traceCtx := context.Background()
+
+	tracing, err := telemetry.NewTracing(traceCtx)
+	if err != nil {
+		log.Fatalf(
+			"initialize tracing: %v",
+			err,
+		)
+	}
+
+	defer func() {
+		ctx, cancel := context.WithTimeout(
+			context.Background(),
+			5*time.Second,
+		)
+		defer cancel()
+
+		if err := tracing.Shutdown(ctx); err != nil {
+			log.Printf(
+				"shutdown tracing: %v",
+				err,
+			)
+		}
+	}()
+
 	startupCtx, startupCancel :=
 		context.WithTimeout(
 			context.Background(),
@@ -222,6 +249,25 @@ func main() {
 			"benchmark mode: access logging disabled",
 		)
 	}
+
+	handler = middleware.TraceRequest(
+		handler,
+	)
+
+	handler = otelhttp.NewHandler(
+		handler,
+		"sentrymesh.http",
+		otelhttp.WithSpanNameFormatter(
+			func(
+				_ string,
+				r *http.Request,
+			) string {
+				return r.Method +
+					" " +
+					r.URL.Path
+			},
+		),
+	)
 
 	handler = middleware.RequestContext(
 		handler,

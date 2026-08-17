@@ -9,6 +9,8 @@ import (
 	"os"
 
 	"github.com/namtran1812/sentrymesh/gateway/internal/metrics"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"time"
 )
 
@@ -129,6 +131,23 @@ func AccessLog(next http.Handler) http.Handler {
 			"remote_addr", r.RemoteAddr,
 		}
 
+		spanContext :=
+			trace.SpanFromContext(
+				r.Context(),
+			).SpanContext()
+
+		if spanContext.IsValid() {
+			attrs = append(
+				attrs,
+				"trace_id",
+				spanContext.TraceID().
+					String(),
+				"span_id",
+				spanContext.SpanID().
+					String(),
+			)
+		}
+
 		if principal, ok := IdentityFromContext(r.Context()); ok {
 			attrs = append(
 				attrs,
@@ -144,4 +163,36 @@ func AccessLog(next http.Handler) http.Handler {
 			attrs...,
 		)
 	})
+}
+
+func TraceRequest(
+	next http.Handler,
+) http.Handler {
+	return http.HandlerFunc(
+		func(
+			w http.ResponseWriter,
+			r *http.Request,
+		) {
+			span :=
+				trace.SpanFromContext(
+					r.Context(),
+				)
+
+			if span.IsRecording() {
+				span.SetAttributes(
+					attribute.String(
+						"sentrymesh.request_id",
+						RequestIDFromContext(
+							r.Context(),
+						),
+					),
+				)
+			}
+
+			next.ServeHTTP(
+				w,
+				r,
+			)
+		},
+	)
 }
