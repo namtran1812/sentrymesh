@@ -232,3 +232,7 @@ func (s *Store) Delete(
 
 	return nil
 }
+
+func (s *Store) Close() error {
+	return s.db.Close()
+}

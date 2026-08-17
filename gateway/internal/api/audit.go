@@ -1,15 +1,16 @@
 package api
 
-import (
-	"github.com/namtran1812/sentrymesh/gateway/internal/audit"
-	"github.com/namtran1812/sentrymesh/gateway/internal/runtime"
-)
+import "github.com/namtran1812/sentrymesh/gateway/internal/audit"
 
-var auditStore audit.Repository = runtime.AuditStore
+var auditStore audit.Repository
 
-func SetAuditStore(store audit.Repository) {
+func SetAuditStore(
+	store audit.Repository,
+) {
 	if store == nil {
-		panic("api: nil audit repository")
+		panic(
+			"audit repository cannot be nil",
+		)
 	}
 
 	auditStore = store

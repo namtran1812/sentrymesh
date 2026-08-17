@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/namtran1812/sentrymesh/gateway/internal/auth"
-	"github.com/namtran1812/sentrymesh/gateway/internal/runtime"
 )
 
 type SecurityPostureKey struct {
@@ -57,7 +56,7 @@ func SecurityPostureHandler(
 		return
 	}
 
-	states, err := runtime.AbuseStore.List(
+	states, err := abuseStore.List(
 		r.Context(),
 	)
 	if err != nil {

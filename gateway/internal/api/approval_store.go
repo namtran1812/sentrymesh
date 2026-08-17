@@ -1,33 +1,8 @@
 package api
 
-import (
-	"log"
-	"os"
+import "github.com/namtran1812/sentrymesh/gateway/internal/approval"
 
-	"github.com/namtran1812/sentrymesh/gateway/internal/approval"
-)
-
-var approvalStore approval.Repository = mustApprovalStore()
-
-func mustApprovalStore() approval.Repository {
-	path := os.Getenv(
-		"SENTRYMESH_APPROVAL_DB",
-	)
-
-	if path == "" {
-		path = "sentrymesh-approvals.db"
-	}
-
-	store, err := approval.NewStore(path)
-	if err != nil {
-		log.Fatalf(
-			"initialize approval store: %v",
-			err,
-		)
-	}
-
-	return store
-}
+var approvalStore approval.Repository
 
 func SetApprovalStore(
 	store approval.Repository,
