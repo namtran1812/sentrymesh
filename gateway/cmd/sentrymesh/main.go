@@ -104,11 +104,52 @@ func main() {
 
 	defer deps.Close()
 
+	asyncAudit, err :=
+		configureAuditMode(deps)
+	if err != nil {
+		log.Fatalf(
+			"configure audit persistence: %v",
+			err,
+		)
+	}
+
+	if asyncAudit != nil {
+		defer func() {
+			ctx, cancel :=
+				context.WithTimeout(
+					context.Background(),
+					10*time.Second,
+				)
+			defer cancel()
+
+			if err := asyncAudit.Close(
+				ctx,
+			); err != nil {
+				log.Printf(
+					"drain audit writer: %v",
+					err,
+				)
+			}
+		}()
+	}
+
 	installDependencies(deps)
 
 	seedAPIKeys()
 
-	apiLimiter := ratelimit.New(20, 5)
+	rateLimitCapacity := 20
+	rateLimitRefill := 5.0
+
+	if os.Getenv("SENTRYMESH_BENCHMARK_MODE") == "1" {
+		rateLimitCapacity = 1_000_000
+		rateLimitRefill = 1_000_000.0
+		log.Println("benchmark mode enabled: API rate limits relaxed")
+	}
+
+	apiLimiter := ratelimit.New(
+		rateLimitCapacity,
+		rateLimitRefill,
+	)
 
 	abuseTracker := abuse.NewPersistent(
 		5,
@@ -154,13 +195,41 @@ func main() {
 	mux.Handle("POST /v1/keys/{id}/revoke", middleware.Auth(middleware.RequireScope("keys:manage", http.HandlerFunc(api.RevokeKeyHandler))))
 	mux.Handle("GET /v1/approvals/{id}/events", middleware.Auth(middleware.RequireScope("audit:read", http.HandlerFunc(api.ToolEventsHandler))))
 
+	handler := http.Handler(
+		middleware.CORS(mux),
+	)
+
+	disableAccessLog :=
+		os.Getenv(
+			"SENTRYMESH_DISABLE_ACCESS_LOG",
+		) == "1"
+
+	if disableAccessLog &&
+		os.Getenv(
+			"SENTRYMESH_BENCHMARK_MODE",
+		) != "1" {
+		log.Fatal(
+			"SENTRYMESH_DISABLE_ACCESS_LOG requires benchmark mode",
+		)
+	}
+
+	if !disableAccessLog {
+		handler = middleware.AccessLog(
+			handler,
+		)
+	} else {
+		log.Println(
+			"benchmark mode: access logging disabled",
+		)
+	}
+
+	handler = middleware.RequestContext(
+		handler,
+	)
+
 	server := &http.Server{
-		Addr: ":8080",
-		Handler: middleware.RequestContext(
-			middleware.AccessLog(
-				middleware.CORS(mux),
-			),
-		),
+		Addr:              ":8080",
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,

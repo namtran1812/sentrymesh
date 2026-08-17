@@ -40,3 +40,7 @@ gateway/sentrymesh
 
 # Environment secrets
 .env
+
+# Local benchmark binaries and generated benchmark results
+gateway/bench
+benchmarks/results/
