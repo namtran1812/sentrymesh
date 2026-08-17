@@ -5,8 +5,12 @@ import (
 	"os"
 )
 
-var DefaultStore = func() *Store {
-	path := os.Getenv("SENTRYMESH_AUTH_DB")
+var DefaultStore Repository = mustDefaultStore()
+
+func mustDefaultStore() Repository {
+	path := os.Getenv(
+		"SENTRYMESH_AUTH_DB",
+	)
 
 	if path == "" {
 		path = "sentrymesh-auth.db"
@@ -14,8 +18,21 @@ var DefaultStore = func() *Store {
 
 	store, err := NewStore(path)
 	if err != nil {
-		log.Fatalf("initialize auth store: %v", err)
+		log.Fatalf(
+			"initialize auth store: %v",
+			err,
+		)
 	}
 
 	return store
-}()
+}
+
+func SetDefaultStore(
+	store Repository,
+) {
+	if store == nil {
+		panic("auth repository cannot be nil")
+	}
+
+	DefaultStore = store
+}

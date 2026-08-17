@@ -34,6 +34,16 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	closePersistence, err :=
+		configurePrimaryPersistence()
+	if err != nil {
+		log.Fatalf(
+			"configure persistence: %v",
+			err,
+		)
+	}
+	defer closePersistence()
+
 	seedAPIKeys()
 
 	apiLimiter := ratelimit.New(20, 5)
