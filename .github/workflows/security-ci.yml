@@ -45,6 +45,98 @@ jobs:
       - name: Run tests
         run: go test ./...
 
+      - name: Run race detector
+        run: go test -race ./...
+
+  postgres-integration:
+    name: PostgreSQL Integration
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+
+        env:
+          POSTGRES_USER: sentrymesh
+          POSTGRES_PASSWORD: sentrymesh
+          POSTGRES_DB: sentrymesh
+
+        ports:
+          - 5432:5432
+
+        options: >-
+          --health-cmd "pg_isready -U sentrymesh -d sentrymesh"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://sentrymesh:sentrymesh@localhost:5432/sentrymesh
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: gateway/go.mod
+          cache-dependency-path: gateway/go.sum
+
+      - name: Download dependencies
+        working-directory: gateway
+        run: go mod download
+
+      - name: Verify PostgreSQL
+        run: |
+          for i in $(seq 1 20); do
+            if pg_isready \
+              -h localhost \
+              -p 5432 \
+              -U sentrymesh \
+              -d sentrymesh; then
+              exit 0
+            fi
+
+            sleep 1
+          done
+
+          exit 1
+
+      - name: Run PostgreSQL integration suite
+        run: make integration-postgres
+
+      - name: Verify migrations
+        env:
+          PGPASSWORD: sentrymesh
+        run: |
+          psql \
+            -h localhost \
+            -U sentrymesh \
+            -d sentrymesh \
+            -c \
+            "SELECT version FROM schema_migrations ORDER BY version;"
+
+      - name: Verify persisted audit data
+        env:
+          PGPASSWORD: sentrymesh
+        run: |
+          rows=$(
+            psql \
+              -h localhost \
+              -U sentrymesh \
+              -d sentrymesh \
+              -tAc \
+              "SELECT COUNT(*) FROM audit_events;"
+          )
+
+          echo "audit_events rows=$rows"
+
+          if [ "$rows" -lt 2 ]; then
+            echo "expected integration tests to persist audit rows"
+            exit 1
+          fi
+
   security-evals:
     name: Security Evals
     runs-on: ubuntu-latest

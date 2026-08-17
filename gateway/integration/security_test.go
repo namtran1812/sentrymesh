@@ -77,21 +77,30 @@ func request(
 func requireServer(t *testing.T) {
 	t.Helper()
 
-	resp, err := http.Get(
-		baseURL + "/health",
-	)
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
 
+	resp, err := client.Get(
+		baseURL + "/ready",
+	)
 	if err != nil {
-		t.Skip(
-			"gateway not running; skipping integration tests",
+		t.Fatalf(
+			"gateway unavailable at %s: %v",
+			baseURL,
+			err,
 		)
 	}
 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		t.Skip(
-			"gateway health check failed",
+		body, _ := io.ReadAll(resp.Body)
+
+		t.Fatalf(
+			"gateway not ready: status=%d body=%s",
+			resp.StatusCode,
+			body,
 		)
 	}
 }
