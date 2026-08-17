@@ -160,5 +160,101 @@ func Handler() http.Handler {
 				"sentrymesh_provider_errors_total %d\n",
 			providerErrors.Load(),
 		)
+
+		if stats, ok := asyncAuditStats(); ok {
+			fmt.Fprintf(
+				w,
+				"# HELP sentrymesh_audit_queue_depth Current asynchronous audit queue depth.\n"+
+					"# TYPE sentrymesh_audit_queue_depth gauge\n"+
+					"sentrymesh_audit_queue_depth %d\n",
+				stats.QueueDepth,
+			)
+
+			fmt.Fprintf(
+				w,
+				"# HELP sentrymesh_audit_queue_capacity Maximum asynchronous audit queue capacity.\n"+
+					"# TYPE sentrymesh_audit_queue_capacity gauge\n"+
+					"sentrymesh_audit_queue_capacity %d\n",
+				stats.QueueCapacity,
+			)
+
+			fmt.Fprintf(
+				w,
+				"# HELP sentrymesh_audit_events_enqueued_total Audit events accepted by the asynchronous queue.\n"+
+					"# TYPE sentrymesh_audit_events_enqueued_total counter\n"+
+					"sentrymesh_audit_events_enqueued_total %d\n",
+				stats.Enqueued,
+			)
+
+			fmt.Fprintf(
+				w,
+				"# HELP sentrymesh_audit_events_flushed_total Audit events successfully persisted by the asynchronous writer.\n"+
+					"# TYPE sentrymesh_audit_events_flushed_total counter\n"+
+					"sentrymesh_audit_events_flushed_total %d\n",
+				stats.Flushed,
+			)
+
+			fmt.Fprintf(
+				w,
+				"# HELP sentrymesh_audit_queue_saturation_total Audit enqueue attempts that encountered a full queue.\n"+
+					"# TYPE sentrymesh_audit_queue_saturation_total counter\n"+
+					"sentrymesh_audit_queue_saturation_total %d\n",
+				stats.Saturated,
+			)
+
+			fmt.Fprintf(
+				w,
+				"# HELP sentrymesh_audit_batches_written_total Successful asynchronous audit batches persisted.\n"+
+					"# TYPE sentrymesh_audit_batches_written_total counter\n"+
+					"sentrymesh_audit_batches_written_total %d\n",
+				stats.BatchesWritten,
+			)
+
+			fmt.Fprintf(
+				w,
+				"# HELP sentrymesh_audit_enqueue_wait_seconds_total Total time request goroutines spent enqueueing audit events.\n"+
+					"# TYPE sentrymesh_audit_enqueue_wait_seconds_total counter\n"+
+					"sentrymesh_audit_enqueue_wait_seconds_total %.9f\n",
+				float64(stats.EnqueueWaitNanos)/1e9,
+			)
+		}
 	})
+}
+
+type AsyncAuditStats struct {
+	QueueDepth       int
+	QueueCapacity    int
+	Enqueued         uint64
+	Flushed          uint64
+	Saturated        uint64
+	BatchesWritten   uint64
+	EnqueueWaitNanos uint64
+}
+
+var asyncAuditStatsProvider atomic.Value
+
+func SetAsyncAuditStatsProvider(
+	provider func() AsyncAuditStats,
+) {
+	asyncAuditStatsProvider.Store(provider)
+}
+
+func asyncAuditStats() (
+	AsyncAuditStats,
+	bool,
+) {
+	value := asyncAuditStatsProvider.Load()
+
+	if value == nil {
+		return AsyncAuditStats{}, false
+	}
+
+	provider, ok :=
+		value.(func() AsyncAuditStats)
+
+	if !ok || provider == nil {
+		return AsyncAuditStats{}, false
+	}
+
+	return provider(), true
 }
