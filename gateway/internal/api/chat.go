@@ -1,8 +1,6 @@
 package api
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -41,20 +39,10 @@ type SecurityResponse struct {
 
 var providerRouter = provider.NewDefaultRouter()
 
-func newRequestID() string {
-	bytes := make([]byte, 8)
-
-	if _, err := rand.Read(bytes); err != nil {
-		return "req_unknown"
-	}
-
-	return "req_" + hex.EncodeToString(bytes)
-}
-
 func ChatHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	requestID := newRequestID()
+	requestID := requestID(r)
 	started := time.Now()
 
 	var req ChatRequest

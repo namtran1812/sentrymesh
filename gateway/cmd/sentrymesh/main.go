@@ -145,8 +145,12 @@ func main() {
 	mux.Handle("GET /v1/approvals/{id}/events", middleware.Auth(middleware.RequireScope("audit:read", http.HandlerFunc(api.ToolEventsHandler))))
 
 	server := &http.Server{
-		Addr:              ":8080",
-		Handler:           middleware.CORS(mux),
+		Addr: ":8080",
+		Handler: middleware.RequestContext(
+			middleware.AccessLog(
+				middleware.CORS(mux),
+			),
+		),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,
