@@ -8,7 +8,7 @@ import (
 	"github.com/namtran1812/sentrymesh/gateway/internal/audit"
 )
 
-var AuditStore = func() *audit.Store {
+var AuditStore audit.Repository = func() audit.Repository {
 	path := os.Getenv("SENTRYMESH_AUDIT_DB")
 
 	if path == "" {
@@ -54,7 +54,15 @@ var AuditStore = func() *audit.Store {
 	return store
 }()
 
-var AbuseStore = func() *abuse.Store {
+func SetAuditStore(store audit.Repository) {
+	if store == nil {
+		panic("runtime: nil audit repository")
+	}
+
+	AuditStore = store
+}
+
+var AbuseStore abuse.Repository = func() abuse.Repository {
 	path := os.Getenv("SENTRYMESH_ABUSE_DB")
 
 	if path == "" {
@@ -71,3 +79,15 @@ var AbuseStore = func() *abuse.Store {
 
 	return store
 }()
+
+func SetAbuseStore(
+	store abuse.Repository,
+) {
+	if store == nil {
+		panic(
+			"runtime: nil abuse repository",
+		)
+	}
+
+	AbuseStore = store
+}

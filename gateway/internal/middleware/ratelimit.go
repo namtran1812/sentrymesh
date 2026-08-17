@@ -14,7 +14,7 @@ import (
 
 func RateLimit(
 	limiter *ratelimit.Limiter,
-	auditStore *audit.Store,
+	auditStore audit.Repository,
 	next http.Handler,
 ) http.Handler {
 	return http.HandlerFunc(func(

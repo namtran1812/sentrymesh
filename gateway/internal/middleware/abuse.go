@@ -41,7 +41,7 @@ func (r *statusRecorder) Write(
 func TrafficGuard(
 	tracker *abuse.Tracker,
 	limiter *ratelimit.Limiter,
-	auditStore *audit.Store,
+	auditStore audit.Repository,
 	next http.Handler,
 ) http.Handler {
 	return AbuseGuard(
@@ -57,7 +57,7 @@ func TrafficGuard(
 
 func AbuseGuard(
 	tracker *abuse.Tracker,
-	auditStore *audit.Store,
+	auditStore audit.Repository,
 	next http.Handler,
 ) http.Handler {
 	return http.HandlerFunc(func(
@@ -247,7 +247,7 @@ func retrySeconds(
 
 func writeAbuseEvent(
 	r *http.Request,
-	store *audit.Store,
+	store audit.Repository,
 	keyID int64,
 	keyName string,
 	userID string,

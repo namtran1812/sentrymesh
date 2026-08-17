@@ -1,4 +1,32 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: sentrymesh-postgres
+
+    environment:
+      POSTGRES_USER: sentrymesh
+      POSTGRES_PASSWORD: sentrymesh
+      POSTGRES_DB: sentrymesh
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - sentrymesh-postgres-data:/var/lib/postgresql/data
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U sentrymesh -d sentrymesh"
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+    restart: unless-stopped
+
   gateway:
     build:
       context: ./gateway
@@ -11,13 +39,11 @@ services:
 
     environment:
       SENTRYMESH_ROOT: /app
-      SENTRYMESH_AUDIT_DB: /data/sentrymesh-audit.db
-      SENTRYMESH_APPROVAL_DB: /data/sentrymesh-approvals.db
-      SENTRYMESH_AUTH_DB: /data/sentrymesh-auth.db
-      SENTRYMESH_ABUSE_DB: /data/sentrymesh-abuse.db
+      DATABASE_URL: postgresql://sentrymesh:sentrymesh@postgres:5432/sentrymesh
 
-    volumes:
-      - sentrymesh-data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
 
     healthcheck:
       test:
@@ -36,6 +62,5 @@ services:
 
     restart: unless-stopped
 
-
 volumes:
-  sentrymesh-data:
+  sentrymesh-postgres-data:

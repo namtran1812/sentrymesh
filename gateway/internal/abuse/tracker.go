@@ -22,7 +22,7 @@ type Tracker struct {
 	keyIDs     map[string]int64
 
 	now   func() time.Time
-	store *Store
+	store Repository
 }
 
 func New(
@@ -44,7 +44,7 @@ func NewPersistent(
 	threshold int,
 	cooldown time.Duration,
 	decayEvery time.Duration,
-	store *Store,
+	store Repository,
 ) *Tracker {
 	tracker := New(
 		threshold,

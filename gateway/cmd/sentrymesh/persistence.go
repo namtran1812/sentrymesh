@@ -7,10 +7,13 @@ import (
 	"os"
 	"time"
 
+	"github.com/namtran1812/sentrymesh/gateway/internal/abuse"
 	"github.com/namtran1812/sentrymesh/gateway/internal/api"
 	"github.com/namtran1812/sentrymesh/gateway/internal/approval"
+	"github.com/namtran1812/sentrymesh/gateway/internal/audit"
 	"github.com/namtran1812/sentrymesh/gateway/internal/auth"
 	"github.com/namtran1812/sentrymesh/gateway/internal/database"
+	"github.com/namtran1812/sentrymesh/gateway/internal/runtime"
 )
 
 type persistenceCloser func()
@@ -53,6 +56,21 @@ func configurePrimaryPersistence() (
 
 	api.SetApprovalStore(
 		approval.NewPostgresStore(pool),
+	)
+
+	auditRepository :=
+		audit.NewPostgresStore(pool)
+
+	runtime.SetAuditStore(
+		auditRepository,
+	)
+
+	api.SetAuditStore(
+		auditRepository,
+	)
+
+	runtime.SetAbuseStore(
+		abuse.NewPostgresStore(pool),
 	)
 
 	log.Println(
