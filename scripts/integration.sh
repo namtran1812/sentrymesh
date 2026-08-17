@@ -68,7 +68,7 @@ echo "==> Gateway ready"
     cd "$GATEWAY_DIR"
 
     SENTRYMESH_INTEGRATION_URL="$BASE_URL" \
-        go test -count=1 -v ./integration
+        go test -tags=integration -count=1 -v ./integration
 )
 
 echo "==> Integration suite passed"

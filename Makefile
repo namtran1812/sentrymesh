@@ -27,11 +27,13 @@ eval:
 	cd gateway && SENTRYMESH_ROOT="$(CURDIR)" go run ./cmd/eval
 
 integration:
+	@tmpdir=$$(mktemp -d); \
+	trap 'rm -rf "$$tmpdir"' EXIT; \
 	unset DATABASE_URL; \
-	SENTRYMESH_AUTH_DB="$$(mktemp -u /tmp/sentrymesh-auth.XXXXXX.db)" \
-	SENTRYMESH_AUDIT_DB="$$(mktemp -u /tmp/sentrymesh-audit.XXXXXX.db)" \
-	SENTRYMESH_APPROVAL_DB="$$(mktemp -u /tmp/sentrymesh-approval.XXXXXX.db)" \
-	SENTRYMESH_ABUSE_DB="$$(mktemp -u /tmp/sentrymesh-abuse.XXXXXX.db)" \
+	SENTRYMESH_AUTH_DB="$$tmpdir/auth.db" \
+	SENTRYMESH_AUDIT_DB="$$tmpdir/audit.db" \
+	SENTRYMESH_APPROVAL_DB="$$tmpdir/approval.db" \
+	SENTRYMESH_ABUSE_DB="$$tmpdir/abuse.db" \
 	./scripts/integration.sh
 
 integration-postgres:
