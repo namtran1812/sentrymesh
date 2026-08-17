@@ -22,6 +22,12 @@ type HealthResponse struct {
 	Version string `json:"version"`
 }
 
+type ReadinessResponse struct {
+	Status  string `json:"status"`
+	Service string `json:"service"`
+	Backend string `json:"backend"`
+}
+
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
@@ -30,6 +36,50 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 		Service: "sentrymesh-gateway",
 		Version: "0.1.0",
 	})
+}
+
+func readinessHandler(
+	deps *Dependencies,
+) http.HandlerFunc {
+	return func(
+		w http.ResponseWriter,
+		r *http.Request,
+	) {
+		w.Header().Set(
+			"Content-Type",
+			"application/json",
+		)
+
+		ctx, cancel := context.WithTimeout(
+			r.Context(),
+			2*time.Second,
+		)
+		defer cancel()
+
+		if err := deps.Ready(ctx); err != nil {
+			w.WriteHeader(
+				http.StatusServiceUnavailable,
+			)
+
+			_ = json.NewEncoder(w).Encode(
+				ReadinessResponse{
+					Status:  "not_ready",
+					Service: "sentrymesh-gateway",
+					Backend: deps.Backend,
+				},
+			)
+
+			return
+		}
+
+		_ = json.NewEncoder(w).Encode(
+			ReadinessResponse{
+				Status:  "ready",
+				Service: "sentrymesh-gateway",
+				Backend: deps.Backend,
+			},
+		)
+	}
 }
 
 func main() {
@@ -69,6 +119,10 @@ func main() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /health", healthHandler)
+	mux.HandleFunc(
+		"GET /ready",
+		readinessHandler(deps),
+	)
 	mux.Handle("POST /v1/chat/completions", middleware.BodyLimit(1<<20, middleware.Auth(middleware.TrafficGuard(abuseTracker, apiLimiter, deps.Audit, http.HandlerFunc(api.ChatHandler)))))
 	mux.Handle("GET /v1/audit/events", middleware.Auth(middleware.RequireScope("audit:read", http.HandlerFunc(api.AuditEventsHandler))))
 	mux.Handle("GET /v1/audit/stats", middleware.Auth(middleware.RequireScope("audit:read", http.HandlerFunc(api.AuditStatsHandler))))

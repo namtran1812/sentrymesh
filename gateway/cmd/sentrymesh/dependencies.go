@@ -19,6 +19,9 @@ type Dependencies struct {
 	Audit     audit.Repository
 	Abuse     abuse.Repository
 
+	Backend string
+
+	ready func(context.Context) error
 	close func()
 }
 
@@ -58,6 +61,12 @@ func newPostgresDependencies(
 		Abuse: abuse.NewPostgresStore(
 			pool,
 		),
+
+		Backend: "postgres",
+
+		ready: func(ctx context.Context) error {
+			return pool.Ping(ctx)
+		},
 
 		close: func() {
 			pool.Close()
@@ -181,6 +190,12 @@ func newSQLiteDependencies() (
 		Audit:     auditStore,
 		Abuse:     abuseStore,
 
+		Backend: "sqlite",
+
+		ready: func(context.Context) error {
+			return nil
+		},
+
 		close: func() {
 			_ = abuseStore.Close()
 			_ = auditStore.Close()
@@ -201,6 +216,24 @@ func envOrDefault(
 	}
 
 	return value
+}
+
+func (d *Dependencies) Ready(
+	ctx context.Context,
+) error {
+	if d == nil {
+		return fmt.Errorf(
+			"dependencies are not initialized",
+		)
+	}
+
+	if d.ready == nil {
+		return fmt.Errorf(
+			"readiness check is not configured",
+		)
+	}
+
+	return d.ready(ctx)
 }
 
 func (d *Dependencies) Close() {
