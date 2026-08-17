@@ -6,9 +6,13 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/namtran1812/sentrymesh/gateway/internal/approval"
 	"github.com/namtran1812/sentrymesh/gateway/internal/audit"
 	"github.com/namtran1812/sentrymesh/gateway/internal/middleware"
 	"github.com/namtran1812/sentrymesh/gateway/internal/tools"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 )
 
 type ToolEvaluationRequest struct {
@@ -52,12 +56,85 @@ func ToolEvaluationHandler(
 		return
 	}
 
-	result := tools.Evaluate(
-		tools.ToolCall{
-			Name:      req.Name,
-			Arguments: req.Arguments,
-			Identity:  principal,
-		},
+	pipelineCtx, pipelineSpan := otel.Tracer(
+		"sentrymesh/api",
+	).Start(
+		r.Context(),
+		"tool.security_pipeline",
+	)
+	defer pipelineSpan.End()
+
+	pipelineSpan.SetAttributes(
+		attribute.String(
+			"sentrymesh.request_id",
+			requestID(r),
+		),
+		attribute.String(
+			"sentrymesh.tool.name",
+			req.Name,
+		),
+		attribute.Int64(
+			"sentrymesh.key_id",
+			principal.KeyID,
+		),
+		attribute.String(
+			"sentrymesh.user_id",
+			principal.UserID,
+		),
+		attribute.String(
+			"sentrymesh.role",
+			string(principal.Role),
+		),
+		attribute.String(
+			"sentrymesh.team",
+			principal.Team,
+		),
+	)
+
+	r = r.WithContext(
+		pipelineCtx,
+	)
+
+	var result tools.Evaluation
+
+	func() {
+		_, span := otel.Tracer(
+			"sentrymesh/api",
+		).Start(
+			pipelineCtx,
+			"tool.policy_evaluation",
+		)
+		defer span.End()
+
+		result = tools.Evaluate(
+			tools.ToolCall{
+				Name:      req.Name,
+				Arguments: req.Arguments,
+				Identity:  principal,
+			},
+		)
+
+		span.SetAttributes(
+			attribute.String(
+				"sentrymesh.tool.decision",
+				string(result.Decision),
+			),
+			attribute.Int(
+				"sentrymesh.tool.risk",
+				result.Risk,
+			),
+		)
+	}()
+
+	pipelineSpan.SetAttributes(
+		attribute.String(
+			"sentrymesh.tool.decision",
+			string(result.Decision),
+		),
+		attribute.Int(
+			"sentrymesh.tool.risk",
+			result.Risk,
+		),
 	)
 
 	response := ToolEvaluationResponse{
@@ -67,14 +144,37 @@ func ToolEvaluationHandler(
 	status := http.StatusOK
 
 	if result.Decision == tools.RequireApproval {
+		var item approval.Request
+
+		_, approvalSpan := otel.Tracer(
+			"sentrymesh/api",
+		).Start(
+			pipelineCtx,
+			"approval.create",
+		)
+
 		item, err := approvalStore.Create(
-			r.Context(),
+			pipelineCtx,
 			req.Name,
 			req.Arguments,
 			result.Risk,
 			result.Reason,
 		)
+
 		if err != nil {
+			approvalSpan.RecordError(err)
+			approvalSpan.SetStatus(
+				codes.Error,
+				"approval creation failed",
+			)
+			approvalSpan.End()
+
+			pipelineSpan.RecordError(err)
+			pipelineSpan.SetStatus(
+				codes.Error,
+				"approval creation failed",
+			)
+
 			http.Error(
 				w,
 				`{"error":"failed to create approval request"}`,
@@ -83,7 +183,22 @@ func ToolEvaluationHandler(
 			return
 		}
 
+		approvalSpan.SetAttributes(
+			attribute.Int64(
+				"sentrymesh.approval_id",
+				item.ID,
+			),
+		)
+		approvalSpan.End()
+
 		response.ApprovalID = &item.ID
+
+		_, auditSpan := otel.Tracer(
+			"sentrymesh/api",
+		).Start(
+			pipelineCtx,
+			"audit.enqueue",
+		)
 
 		err = auditStore.WriteToolEvent(
 			r.Context(),
@@ -99,12 +214,37 @@ func ToolEvaluationHandler(
 		)
 
 		if err != nil {
+			auditSpan.RecordError(err)
+			auditSpan.SetStatus(
+				codes.Error,
+				"tool audit write failed",
+			)
+
 			log.Printf(
 				"failed to write TOOL_APPROVAL_REQUESTED approval=%d: %v",
 				item.ID,
 				err,
 			)
 		}
+
+		auditSpan.SetAttributes(
+			attribute.Int64(
+				"sentrymesh.approval_id",
+				item.ID,
+			),
+			attribute.String(
+				"sentrymesh.audit.event_type",
+				"TOOL_APPROVAL_REQUESTED",
+			),
+		)
+		auditSpan.End()
+
+		pipelineSpan.SetAttributes(
+			attribute.Int64(
+				"sentrymesh.approval_id",
+				item.ID,
+			),
+		)
 
 		status = http.StatusAccepted
 	}

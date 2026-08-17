@@ -11,6 +11,9 @@ import (
 	"github.com/namtran1812/sentrymesh/gateway/internal/executor"
 	"github.com/namtran1812/sentrymesh/gateway/internal/identity"
 	"github.com/namtran1812/sentrymesh/gateway/internal/middleware"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 )
 
 func ExecuteApprovalHandler(
@@ -89,6 +92,44 @@ func ExecuteApprovalHandler(
 		return
 	}
 
+	pipelineCtx, pipelineSpan := otel.Tracer(
+		"sentrymesh/api",
+	).Start(
+		r.Context(),
+		"tool.execution_pipeline",
+	)
+	defer pipelineSpan.End()
+
+	pipelineSpan.SetAttributes(
+		attribute.String(
+			"sentrymesh.request_id",
+			requestID(r),
+		),
+		attribute.Int64(
+			"sentrymesh.approval_id",
+			id,
+		),
+		attribute.String(
+			"sentrymesh.tool.name",
+			item.Tool,
+		),
+		attribute.Int(
+			"sentrymesh.tool.risk",
+			item.Risk,
+		),
+	)
+
+	r = r.WithContext(
+		pipelineCtx,
+	)
+
+	_, claimSpan := otel.Tracer(
+		"sentrymesh/api",
+	).Start(
+		pipelineCtx,
+		"approval.claim",
+	)
+
 	claimed, err := approvalStore.ClaimExecution(
 		r.Context(),
 		id,
@@ -103,6 +144,12 @@ func ExecuteApprovalHandler(
 	}
 
 	if !claimed {
+		claimSpan.SetStatus(
+			codes.Error,
+			"execution not claimed",
+		)
+		claimSpan.End()
+
 		http.Error(
 			w,
 			`{"error":"approval already claimed or executed"}`,
@@ -110,6 +157,15 @@ func ExecuteApprovalHandler(
 		)
 		return
 	}
+
+	claimSpan.End()
+
+	_, startedAuditSpan := otel.Tracer(
+		"sentrymesh/api",
+	).Start(
+		pipelineCtx,
+		"audit.execution_started",
+	)
 
 	_ = auditStore.WriteToolEvent(
 		r.Context(),
@@ -130,6 +186,8 @@ func ExecuteApprovalHandler(
 		},
 	)
 
+	startedAuditSpan.End()
+
 	var arguments map[string]any
 
 	if err := json.Unmarshal(item.Arguments, &arguments); err != nil {
@@ -143,13 +201,43 @@ func ExecuteApprovalHandler(
 		return
 	}
 
+	executeCtx, executeSpan := otel.Tracer(
+		"sentrymesh/api",
+	).Start(
+		pipelineCtx,
+		"tool.execute",
+	)
+
 	result, err := executor.Execute(
-		r.Context(),
+		executeCtx,
 		item.Tool,
 		arguments,
 	)
+
+	executeSpan.SetAttributes(
+		attribute.String(
+			"sentrymesh.tool.name",
+			item.Tool,
+		),
+	)
 	if err != nil {
-		_ = approvalStore.FailExecution(r.Context(), id)
+		executeSpan.RecordError(err)
+		executeSpan.SetStatus(
+			codes.Error,
+			"tool execution failed",
+		)
+		executeSpan.End()
+
+		pipelineSpan.RecordError(err)
+		pipelineSpan.SetStatus(
+			codes.Error,
+			"tool execution failed",
+		)
+
+		_ = approvalStore.FailExecution(
+			pipelineCtx,
+			id,
+		)
 
 		http.Error(
 			w,
@@ -159,10 +247,32 @@ func ExecuteApprovalHandler(
 		return
 	}
 
+	executeSpan.End()
+
+	_, finishSpan := otel.Tracer(
+		"sentrymesh/api",
+	).Start(
+		pipelineCtx,
+		"approval.finish",
+	)
+
 	if err := approvalStore.FinishExecution(
 		r.Context(),
 		id,
 	); err != nil {
+		finishSpan.RecordError(err)
+		finishSpan.SetStatus(
+			codes.Error,
+			"execution finalization failed",
+		)
+		finishSpan.End()
+
+		pipelineSpan.RecordError(err)
+		pipelineSpan.SetStatus(
+			codes.Error,
+			"execution finalization failed",
+		)
+
 		http.Error(
 			w,
 			`{"error":"failed to finalize execution"}`,
@@ -170,6 +280,15 @@ func ExecuteApprovalHandler(
 		)
 		return
 	}
+
+	finishSpan.End()
+
+	_, succeededAuditSpan := otel.Tracer(
+		"sentrymesh/api",
+	).Start(
+		pipelineCtx,
+		"audit.execution_succeeded",
+	)
 
 	_ = auditStore.WriteToolEvent(
 		r.Context(),
@@ -189,6 +308,15 @@ func ExecuteApprovalHandler(
 				},
 			},
 		},
+	)
+
+	succeededAuditSpan.End()
+
+	pipelineSpan.SetAttributes(
+		attribute.String(
+			"sentrymesh.execution.status",
+			"EXECUTED",
+		),
 	)
 
 	_ = json.NewEncoder(w).Encode(result)
