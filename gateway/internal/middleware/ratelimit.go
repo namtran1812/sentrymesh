@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/namtran1812/sentrymesh/gateway/internal/audit"
+	"github.com/namtran1812/sentrymesh/gateway/internal/metrics"
 	"github.com/namtran1812/sentrymesh/gateway/internal/ratelimit"
 )
 
@@ -101,6 +102,8 @@ func RateLimit(
 			"Retry-After",
 			strconv.Itoa(seconds),
 		)
+
+		metrics.IncRateLimit()
 
 		w.WriteHeader(
 			http.StatusTooManyRequests,

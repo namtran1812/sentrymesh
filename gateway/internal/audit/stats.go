@@ -11,6 +11,7 @@ type Stats struct {
 	RedactedRequests     int     `json:"redacted_requests"`
 	BlockedRequests      int     `json:"blocked_requests"`
 	AverageLatencyMS     float64 `json:"average_latency_ms"`
+	AverageLatencyUS     float64 `json:"average_latency_us"`
 	AverageRiskScore     float64 `json:"average_risk_score"`
 	CriticalEvents       int     `json:"critical_events"`
 	HighSeverityEvents   int     `json:"high_severity_events"`
@@ -50,6 +51,7 @@ func (s *Store) Stats(
 			), 0),
 
 			COALESCE(AVG(latency_ms), 0),
+			COALESCE(AVG(latency_us), 0),
 			COALESCE(AVG(risk_score), 0),
 
 			COALESCE(SUM(
@@ -81,6 +83,7 @@ func (s *Store) Stats(
 		&stats.RedactedRequests,
 		&stats.BlockedRequests,
 		&stats.AverageLatencyMS,
+		&stats.AverageLatencyUS,
 		&stats.AverageRiskScore,
 		&stats.CriticalEvents,
 		&stats.HighSeverityEvents,

@@ -12,6 +12,7 @@ import (
 
 	"github.com/namtran1812/sentrymesh/gateway/internal/abuse"
 	"github.com/namtran1812/sentrymesh/gateway/internal/api"
+	"github.com/namtran1812/sentrymesh/gateway/internal/metrics"
 	"github.com/namtran1812/sentrymesh/gateway/internal/middleware"
 	"github.com/namtran1812/sentrymesh/gateway/internal/ratelimit"
 )
@@ -119,6 +120,15 @@ func main() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /health", healthHandler)
+	mux.Handle(
+		"GET /metrics",
+		middleware.Auth(
+			middleware.RequireScope(
+				"audit:read",
+				metrics.Handler(),
+			),
+		),
+	)
 	mux.HandleFunc(
 		"GET /ready",
 		readinessHandler(deps),

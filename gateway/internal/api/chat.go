@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/namtran1812/sentrymesh/gateway/internal/audit"
+	"github.com/namtran1812/sentrymesh/gateway/internal/metrics"
 	"github.com/namtran1812/sentrymesh/gateway/internal/provider"
 	"github.com/namtran1812/sentrymesh/gateway/internal/risk"
 	"github.com/namtran1812/sentrymesh/gateway/internal/scanner"
@@ -90,6 +91,10 @@ func ChatHandler(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if riskDecision.Action == "BLOCK" {
+		metrics.IncSecurityBlock()
+
+		duration := time.Since(started)
+
 		_ = auditStore.Write(
 			r.Context(),
 			audit.Event{
@@ -100,7 +105,8 @@ func ChatHandler(w http.ResponseWriter, r *http.Request) {
 				Decision:          riskDecision.Action,
 				RiskScore:         riskDecision.Score,
 				Severity:          riskDecision.Severity,
-				LatencyMS:         time.Since(started).Milliseconds(),
+				LatencyMS:         duration.Milliseconds(),
+				LatencyUS:         duration.Microseconds(),
 				SecretFindings:    secretFindings,
 				PIIFindings:       piiFindings,
 				InjectionFindings: injectionFindings,
@@ -151,6 +157,8 @@ func ChatHandler(w http.ResponseWriter, r *http.Request) {
 	)
 
 	if err != nil {
+		metrics.IncProviderError()
+
 		if isProviderTimeout(providerCtx, err) {
 			writeJSONError(
 				w,
@@ -194,6 +202,7 @@ func ChatHandler(w http.ResponseWriter, r *http.Request) {
 	message := "request passed SentryMesh security checks"
 
 	if riskDecision.Action == "ALLOW_WITH_REDACTION" {
+		metrics.IncRedaction()
 		message = "request allowed after sensitive data redaction"
 	}
 
@@ -201,7 +210,7 @@ func ChatHandler(w http.ResponseWriter, r *http.Request) {
 		message = "request allowed after output redaction"
 	}
 
-	latency := time.Since(started).Milliseconds()
+	duration := time.Since(started)
 
 	_ = auditStore.Write(
 		r.Context(),
@@ -213,7 +222,8 @@ func ChatHandler(w http.ResponseWriter, r *http.Request) {
 			Decision:          riskDecision.Action,
 			RiskScore:         riskDecision.Score,
 			Severity:          riskDecision.Severity,
-			LatencyMS:         latency,
+			LatencyMS:         duration.Milliseconds(),
+			LatencyUS:         duration.Microseconds(),
 			SecretFindings:    secretFindings,
 			PIIFindings:       piiFindings,
 			InjectionFindings: injectionFindings,

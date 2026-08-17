@@ -16,6 +16,7 @@ type Record struct {
 	RiskScore         int             `json:"risk_score"`
 	Severity          string          `json:"severity"`
 	LatencyMS         int64           `json:"latency_ms"`
+	LatencyUS         int64           `json:"latency_us"`
 	SecretFindings    json.RawMessage `json:"secret_findings"`
 	PIIFindings       json.RawMessage `json:"pii_findings"`
 	InjectionFindings json.RawMessage `json:"injection_findings"`
@@ -40,6 +41,7 @@ func (s *Store) List(ctx context.Context, limit int) ([]Record, error) {
 			risk_score,
 			severity,
 			latency_ms,
+			latency_us,
 			secret_findings,
 			pii_findings,
 			injection_findings,
@@ -74,6 +76,7 @@ func (s *Store) List(ctx context.Context, limit int) ([]Record, error) {
 			&record.RiskScore,
 			&record.Severity,
 			&record.LatencyMS,
+			&record.LatencyUS,
 			&secret,
 			&pii,
 			&injection,

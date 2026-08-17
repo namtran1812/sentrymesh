@@ -76,6 +76,7 @@ func (s *PostgresStore) Write(
 			risk_score,
 			severity,
 			latency_ms,
+			latency_us,
 			secret_findings,
 			pii_findings,
 			injection_findings,
@@ -83,7 +84,7 @@ func (s *PostgresStore) Write(
 		)
 		VALUES (
 			$1, $2, $3, $4, $5, $6,
-			$7, $8, $9, $10, $11, $12
+			$7, $8, $9, $10, $11, $12, $13
 		)
 		`,
 		event.RequestID,
@@ -94,6 +95,7 @@ func (s *PostgresStore) Write(
 		event.RiskScore,
 		event.Severity,
 		event.LatencyMS,
+		event.LatencyUS,
 		secret,
 		pii,
 		injection,
@@ -127,6 +129,7 @@ func (s *PostgresStore) List(
 			risk_score,
 			severity,
 			latency_ms,
+			latency_us,
 			secret_findings,
 			pii_findings,
 			injection_findings,
@@ -162,6 +165,7 @@ func (s *PostgresStore) List(
 			&item.RiskScore,
 			&item.Severity,
 			&item.LatencyMS,
+			&item.LatencyUS,
 			&secret,
 			&pii,
 			&injection,
@@ -202,6 +206,7 @@ func (s *PostgresStore) Stats(
 			),
 			COUNT(*) FILTER (WHERE decision = 'BLOCK'),
 			COALESCE(AVG(latency_ms), 0),
+			COALESCE(AVG(latency_us), 0),
 			COALESCE(AVG(risk_score), 0),
 			COUNT(*) FILTER (WHERE severity = 'CRITICAL'),
 			COUNT(*) FILTER (WHERE severity = 'HIGH'),
@@ -214,6 +219,7 @@ func (s *PostgresStore) Stats(
 		&result.RedactedRequests,
 		&result.BlockedRequests,
 		&result.AverageLatencyMS,
+		&result.AverageLatencyUS,
 		&result.AverageRiskScore,
 		&result.CriticalEvents,
 		&result.HighSeverityEvents,

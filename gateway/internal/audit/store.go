@@ -19,6 +19,7 @@ type Event struct {
 	RiskScore         int
 	Severity          string
 	LatencyMS         int64
+	LatencyUS         int64
 	SecretFindings    any
 	PIIFindings       any
 	InjectionFindings any
@@ -57,6 +58,7 @@ func (s *Store) migrate() error {
 			risk_score INTEGER NOT NULL,
 			severity TEXT NOT NULL,
 			latency_ms INTEGER NOT NULL,
+			latency_us INTEGER NOT NULL DEFAULT 0,
 			secret_findings TEXT NOT NULL,
 			pii_findings TEXT NOT NULL,
 			injection_findings TEXT NOT NULL,
@@ -70,7 +72,59 @@ func (s *Store) migrate() error {
 		ON audit_events(timestamp);
 	`)
 
-	return err
+	if err != nil {
+		return err
+	}
+
+	rows, err := s.db.Query(
+		`PRAGMA table_info(audit_events)`,
+	)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	hasLatencyUS := false
+
+	for rows.Next() {
+		var cid int
+		var name string
+		var dataType string
+		var notNull int
+		var defaultValue any
+		var primaryKey int
+
+		if err := rows.Scan(
+			&cid,
+			&name,
+			&dataType,
+			&notNull,
+			&defaultValue,
+			&primaryKey,
+		); err != nil {
+			return err
+		}
+
+		if name == "latency_us" {
+			hasLatencyUS = true
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	if !hasLatencyUS {
+		_, err = s.db.Exec(
+			`ALTER TABLE audit_events
+			 ADD COLUMN latency_us INTEGER NOT NULL DEFAULT 0`,
+		)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func marshal(v any) string {
@@ -99,12 +153,13 @@ func (s *Store) Write(ctx context.Context, event Event) error {
 			risk_score,
 			severity,
 			latency_ms,
+			latency_us,
 			secret_findings,
 			pii_findings,
 			injection_findings,
 			output_findings
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`,
 		event.RequestID,
 		event.Timestamp.UTC().Format(time.RFC3339Nano),
@@ -114,6 +169,7 @@ func (s *Store) Write(ctx context.Context, event Event) error {
 		event.RiskScore,
 		event.Severity,
 		event.LatencyMS,
+		event.LatencyUS,
 		marshal(event.SecretFindings),
 		marshal(event.PIIFindings),
 		marshal(event.InjectionFindings),

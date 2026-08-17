@@ -10,6 +10,7 @@ import (
 
 	"github.com/namtran1812/sentrymesh/gateway/internal/abuse"
 	"github.com/namtran1812/sentrymesh/gateway/internal/audit"
+	"github.com/namtran1812/sentrymesh/gateway/internal/metrics"
 	"github.com/namtran1812/sentrymesh/gateway/internal/ratelimit"
 )
 
@@ -185,6 +186,8 @@ func AbuseGuard(
 		)
 
 		if entered {
+			metrics.IncAbuseCooldown()
+
 			writeAbuseEvent(
 				r,
 				auditStore,

@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+
+	"github.com/namtran1812/sentrymesh/gateway/internal/metrics"
 	"time"
 )
 
@@ -103,6 +105,14 @@ func AccessLog(next http.Handler) http.Handler {
 
 		next.ServeHTTP(recorder, r)
 
+		duration := time.Since(started)
+
+		switch r.URL.Path {
+		case "/health", "/ready", "/metrics":
+		default:
+			metrics.ObserveRequest(duration)
+		}
+
 		status := recorder.status
 		if status == 0 {
 			status = http.StatusOK
@@ -115,7 +125,7 @@ func AccessLog(next http.Handler) http.Handler {
 			"path", r.URL.Path,
 			"status", status,
 			"bytes", recorder.bytes,
-			"latency_ms", time.Since(started).Milliseconds(),
+			"latency_us", duration.Microseconds(),
 			"remote_addr", r.RemoteAddr,
 		}
 
