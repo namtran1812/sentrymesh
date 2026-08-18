@@ -29,9 +29,6 @@ evals/results/history/
 *.db-wal
 
 # Runtime databases
-*.db
-*.db-shm
-*.db-wal
 
 # Local builds / backups
 gateway/sentrymesh
@@ -39,8 +36,17 @@ gateway/sentrymesh
 *.tmp
 
 # Environment secrets
-.env
 
 # Local benchmark binaries and generated benchmark results
 gateway/bench
 benchmarks/results/
+
+# Local configuration
+
+# Local persistence
+
+# Local binaries
+/gateway/sentrymesh
+
+# Temporary benchmark logs
+/benchmarks/results/*-server.log
