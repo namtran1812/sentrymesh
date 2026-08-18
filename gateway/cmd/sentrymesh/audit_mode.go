@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/namtran1812/sentrymesh/gateway/internal/audit"
+	"github.com/namtran1812/sentrymesh/gateway/internal/metrics"
 )
 
 func envPositiveInt(
@@ -59,6 +60,26 @@ func configureAuditMode(
 		)
 
 		return nil, nil
+	}
+
+	if os.Getenv(
+		"SENTRYMESH_AUDIT_FAIL_WRITES",
+	) == "1" {
+		if !benchmarkMode {
+			return nil, fmt.Errorf(
+				"SENTRYMESH_AUDIT_FAIL_WRITES requires benchmark mode",
+			)
+		}
+
+		deps.Audit =
+			audit.NewFailingRepository(
+				deps.Audit,
+				true,
+			)
+
+		log.Println(
+			"benchmark mode: audit persistence failures injected",
+		)
 	}
 
 	mode := os.Getenv(
@@ -124,6 +145,23 @@ func configureAuditMode(
 	}
 
 	deps.Audit = asyncRepository
+
+	metrics.SetAsyncAuditStatsProvider(
+		func() metrics.AsyncAuditStats {
+			stats :=
+				asyncRepository.AsyncStats()
+
+			return metrics.AsyncAuditStats{
+				QueueDepth:       stats.QueueDepth,
+				QueueCapacity:    stats.QueueCapacity,
+				Enqueued:         stats.Enqueued,
+				Flushed:          stats.Flushed,
+				Saturated:        stats.Saturated,
+				BatchesWritten:   stats.BatchesWritten,
+				EnqueueWaitNanos: stats.EnqueueWaitNanos,
+			}
+		},
+	)
 
 	log.Printf(
 		"audit persistence mode: async queue=%d batch=%d flush=%s",

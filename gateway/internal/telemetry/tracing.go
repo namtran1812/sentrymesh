@@ -3,7 +3,9 @@ package telemetry
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
+	"strconv"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -76,6 +78,36 @@ func NewTracing(
 		)
 	}
 
+	sampleRatio := 0.05
+
+	if raw := os.Getenv(
+		"SENTRYMESH_TRACE_SAMPLE_RATIO",
+	); raw != "" {
+		parsed, err := strconv.ParseFloat(
+			raw,
+			64,
+		)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"parse trace sample ratio: %w",
+				err,
+			)
+		}
+
+		if parsed < 0 || parsed > 1 {
+			return nil, fmt.Errorf(
+				"trace sample ratio must be between 0 and 1",
+			)
+		}
+
+		sampleRatio = parsed
+	}
+
+	log.Printf(
+		"OpenTelemetry trace sample ratio: %.4f",
+		sampleRatio,
+	)
+
 	provider :=
 		sdktrace.NewTracerProvider(
 			sdktrace.WithBatcher(
@@ -86,7 +118,9 @@ func NewTracing(
 			),
 			sdktrace.WithSampler(
 				sdktrace.ParentBased(
-					sdktrace.AlwaysSample(),
+					sdktrace.TraceIDRatioBased(
+						sampleRatio,
+					),
 				),
 			),
 		)

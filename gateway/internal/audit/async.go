@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -40,6 +41,12 @@ type AsyncRepository struct {
 
 	mu     sync.RWMutex
 	closed bool
+
+	enqueued       atomic.Uint64
+	flushed        atomic.Uint64
+	saturated      atomic.Uint64
+	enqueueWaitNS  atomic.Uint64
+	batchesWritten atomic.Uint64
 }
 
 func NewAsyncRepository(
@@ -108,11 +115,44 @@ func (a *AsyncRepository) Write(
 		return ErrAsyncClosed
 	}
 
+	started := time.Now()
+
+	// Fast path avoids reporting saturation when capacity is available.
 	select {
 	case a.queue <- event:
+		a.enqueued.Add(1)
+		a.enqueueWaitNS.Add(
+			uint64(
+				time.Since(started).
+					Nanoseconds(),
+			),
+		)
+		return nil
+
+	default:
+		a.saturated.Add(1)
+	}
+
+	// The queue is bounded. When full, apply backpressure instead of
+	// silently dropping the audit event.
+	select {
+	case a.queue <- event:
+		a.enqueued.Add(1)
+		a.enqueueWaitNS.Add(
+			uint64(
+				time.Since(started).
+					Nanoseconds(),
+			),
+		)
 		return nil
 
 	case <-ctx.Done():
+		a.enqueueWaitNS.Add(
+			uint64(
+				time.Since(started).
+					Nanoseconds(),
+			),
+		)
 		return ctx.Err()
 	}
 }
@@ -208,6 +248,10 @@ func (a *AsyncRepository) persistWithRetry(
 		cancel()
 
 		if err == nil {
+			a.flushed.Add(
+				uint64(len(events)),
+			)
+			a.batchesWritten.Add(1)
 			return
 		}
 
@@ -250,5 +294,27 @@ func (a *AsyncRepository) Close(
 			"drain async audit queue: %w",
 			ctx.Err(),
 		)
+	}
+}
+
+type AsyncStats struct {
+	QueueDepth       int
+	QueueCapacity    int
+	Enqueued         uint64
+	Flushed          uint64
+	Saturated        uint64
+	BatchesWritten   uint64
+	EnqueueWaitNanos uint64
+}
+
+func (a *AsyncRepository) AsyncStats() AsyncStats {
+	return AsyncStats{
+		QueueDepth:       len(a.queue),
+		QueueCapacity:    cap(a.queue),
+		Enqueued:         a.enqueued.Load(),
+		Flushed:          a.flushed.Load(),
+		Saturated:        a.saturated.Load(),
+		BatchesWritten:   a.batchesWritten.Load(),
+		EnqueueWaitNanos: a.enqueueWaitNS.Load(),
 	}
 }
